@@ -1,0 +1,115 @@
+📱 WAYBACK MEDIA SAVER - INÍCIO RÁPIDO
+=========================================
+
+🎉 Sua aplicação está pronta!
+
+Localização:
+  C:\Users\atama\Documents\Unwanted Tools\app-wayback
+
+PASSOS PARA COMEÇAR:
+====================
+
+1️⃣ INSTALE NODE.JS (se ainda não tiver)
+   Acesse: https://nodejs.org/ (LTS recomendado)
+   Baixe e instale o `.msi` para Windows
+   Reinicie seu PowerShell/VS Code após instalar
+
+2️⃣ EXECUTE O SETUP
+   Abra PowerShell ou VS Code Terminal
+   
+   cd 'C:\Users\atama\Documents\Unwanted Tools\app-wayback'
+   .\setup.ps1
+
+   Se receber erro de permissão, execute antes:
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+3️⃣ INICIE A APLICAÇÃO
+   
+   DESENVOLVIMENTO (com hot-reload):
+   npm run electron-dev
+   
+   PRODUÇÃO (após build):
+   npm run electron-build
+   npm start
+
+COMO USAR:
+==========
+
+1. Abra o app
+2. Cole um link do Wayback Machine:
+   - Exemplo 1: https://web.archive.org/web/*/http://example.com
+   - Exemplo 2: https://web.archive.org/web/20021002215047/http://pulseultra.com
+3. Escolha o tipo (Imagens, Áudio & Vídeo, Documentos, Todos)
+4. Clique "Buscar"
+5. Selecione itens (checkbox)
+6. Clique "Baixar selecionados"
+7. Escolha a pasta onde salvar
+8. Acompanhe o progresso na barra inferior
+
+ARQUIVOS IMPORTANTES:
+====================
+
+📄 README.md           → Documentação completa
+📄 QUICKSTART.md       → Guia rápido
+📄 TECHNICAL.md        → Detalhes técnicos
+📁 src/                → React components
+📁 electron/           → Lógica backend (Electron)
+📄 package.json        → Dependências
+
+RECURSOS IMPLEMENTADOS:
+======================
+
+✅ Busca no Wayback Machine (CDX API)
+✅ Download paralelo (até 3 simultâneos)
+✅ Preservação de extensões de arquivo
+✅ Paginação (20 itens por página)
+✅ Filtros por tipo e data
+✅ Preview de imagens (clique para abrir)
+✅ Player de áudio/vídeo embutido
+✅ Suporte multilíngue (Português BR + English US)
+✅ Barra de progresso por arquivo
+✅ Fila de downloads com status
+✅ Interface moderna (tema escuro)
+✅ Responsivo (mobile-friendly)
+
+TROUBLESHOOTING:
+================
+
+❌ "npm: The term 'npm' is not recognized"
+   → Instale Node.js de nodejs.org
+   → Reinicie o terminal
+
+❌ "Port 5173 already in use"
+   → Encerre outro Electron em execução
+   → Ou mude a porta em vite.config.js
+
+❌ Electron não abre
+   → Certifique-se que npm run electron-dev não saiu com erro
+   → Verifique se o Vite iniciou (deve aparecer "VITE v5.0...")
+
+PRÓXIMOS PASSOS (opcional):
+===========================
+
+Para modificar a aplicação:
+1. Edite arquivos em `src/` (React)
+2. Edite `electron/main.js` para mudanças backend
+3. Edite `src/locales.js` para adicionar novos idiomas
+4. Salve → Vite recarrega automaticamente em dev
+
+Para fazer build executável:
+npm run electron-build
+→ Cria `dist/` com app otimizada
+
+SUPORTE:
+========
+
+Dúvidas? Consulte:
+- README.md (documentação completa)
+- QUICKSTART.md (guia passo-a-passo)
+- TECHNICAL.md (arquitetura e detalhes)
+
+Boa sorte! 🚀
+
+---
+Versão: 0.2.0
+Data: Nov 13, 2025

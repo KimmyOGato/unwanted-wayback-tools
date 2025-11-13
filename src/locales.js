@@ -1,0 +1,75 @@
+const locales = {
+  'pt-BR': {
+    title: 'Wayback Media Saver',
+    subtitle: 'Cole um link do Wayback Machine (ou a URL original) para buscar imagens e mídias arquivadas.',
+    placeholder: 'https://web.archive.org/web/*/http://example.com',
+    type_images: 'Imagens',
+    type_media: 'Áudio & Vídeo',
+    type_all: 'Todos',
+    type_documents: 'Documentos',
+    search: 'Buscar',
+    items_found: '{count} itens encontrados',
+    searching: 'Buscando...',
+    select_folder: 'Selecione a pasta de destino',
+    download_selected: 'Baixar selecionados',
+    done_downloads: 'Download(s) finalizado(s) na pasta selecionada.',
+    no_selection: 'Selecione ao menos um item.',
+    paste_link: 'Cole um link do Wayback ou a URL original.',
+    filters: 'Filtros',
+    from_date: 'Data inicial',
+    to_date: 'Data final',
+    min_size: 'Tamanho mín. (KB)',
+    max_size: 'Tamanho máx. (KB)',
+    apply_filters: 'Aplicar filtros',
+    page: 'Página {page} de {total}',
+    next: 'Próxima',
+    prev: 'Anterior',
+    preview: 'Pré-visualizar',
+    status: 'Status',
+    downloading: 'Baixando...',
+    completed: 'Concluído',
+    error: 'Erro',
+    queued: 'Fila',
+    cancel: 'Cancelar'
+  },
+  'en-US': {
+    title: 'Wayback Media Saver',
+    subtitle: 'Paste a Wayback Machine link (or the original URL) to search archived images and media.',
+    placeholder: 'https://web.archive.org/web/*/http://example.com',
+    type_images: 'Images',
+    type_media: 'Audio & Video',
+    type_all: 'All',
+    type_documents: 'Documents',
+    search: 'Search',
+    items_found: '{count} items found',
+    searching: 'Searching...',
+    select_folder: 'Select destination folder',
+    download_selected: 'Download selected',
+    done_downloads: 'Download(s) completed in the selected folder.',
+    no_selection: 'Select at least one item.',
+    paste_link: 'Paste a Wayback link or the original URL.',
+    filters: 'Filters',
+    from_date: 'Start date',
+    to_date: 'End date',
+    min_size: 'Min size (KB)',
+    max_size: 'Max size (KB)',
+    apply_filters: 'Apply filters',
+    page: 'Page {page} of {total}',
+    next: 'Next',
+    prev: 'Previous',
+    preview: 'Preview',
+    status: 'Status',
+    downloading: 'Downloading...',
+    completed: 'Completed',
+    error: 'Error',
+    queued: 'Queued',
+    cancel: 'Cancel'
+  }
+}
+
+export const useLocale = (lang) => locales[lang] || locales['pt-BR']
+
+export const formatMessage = (msg, vars) => {
+  if (!msg) return ''
+  return msg.replace(/{(\w+)}/g, (_, key) => vars?.[key] || '')
+}
