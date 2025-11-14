@@ -8,6 +8,7 @@ export default function Menu({ mode, onSelect, theme, onToggleTheme }) {
         <button className={mode === 'wayback' ? 'active' : ''} onClick={() => onSelect('wayback')}>Wayback Search</button>
         <button className={mode === 'mp3' ? 'active' : ''} onClick={() => onSelect('mp3')}>MP3 Search</button>
         <button className={mode === 'lostmyspace' ? 'active' : ''} onClick={() => onSelect('lostmyspace')}>LostMySpace</button>
+        <button className={mode === 'downloads' ? 'active' : ''} onClick={() => onSelect('downloads')}>Downloads</button>
         <button className={mode === 'credits' ? 'active' : ''} onClick={() => onSelect('credits')}>Credits</button>
       </nav>
 

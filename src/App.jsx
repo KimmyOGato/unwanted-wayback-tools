@@ -4,7 +4,7 @@ import SearchForm from './components/SearchForm'
 import ResultsGrid from './components/ResultsGrid'
 import DownloadStatus from './components/DownloadStatus'
 import Menu from './components/Menu'
-import WaybackAdvanced from './components/WaybackAdvanced'
+import WaybackSimpleSearch from './components/WaybackSimpleSearch'
 import Mp3Search from './components/Mp3Search'
 import LostMySpace from './components/LostMySpace'
 import './App.css'
@@ -194,10 +194,7 @@ export default function App() {
       </header>
 
       {mode === 'wayback' && (
-        <>
-          <SearchForm locale={locale} loading={loading} onSearch={handleSearch} />
-          <WaybackAdvanced />
-        </>
+        <WaybackSimpleSearch />
       )}
 
       {mode === 'mp3' && (
@@ -218,7 +215,7 @@ export default function App() {
         </div>
       )}
 
-      {(downloadQueue.length > 0 || Object.keys(downloadStatus).length > 0) && (
+      {mode === 'downloads' && (
         <DownloadStatus
           queue={downloadQueue}
           status={downloadStatus}

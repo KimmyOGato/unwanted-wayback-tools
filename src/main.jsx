@@ -28,35 +28,10 @@ window.addEventListener('unhandledrejection', (ev) => {
 	const reason = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : ''
 	const msg = String(reason || '')
 	const lower = msg.toLowerCase()
-	if (lower.includes('no supported source') || lower.includes('failed to load because no supported source') || lower.includes('failed to load')) {
-		try {
-			const active = document.activeElement
-			if (active && active.tagName === 'AUDIO') {
-				const src = active.currentSrc || active.src
-				if (src) {
-					// Ask the user to download and play locally
-					if (confirm('Playback failed (unsupported source). Download the file and play locally instead?')) {
-						window.api.selectFolder().then(folder => {
-							if (!folder) return
-							const filename = src.split('/').pop()
-							window.api.downloadResource({ url: src, destFolder: folder, filename }).then(res => {
-								if (res && res.path) {
-									const fileUrl = `file://${res.path.replace(/\\\\/g, '/')}`
-									try {
-										active.src = fileUrl
-										active.play().catch(() => {})
-									} catch (e) { /* ignore */ }
-								}
-							}).catch(() => {})
-						}).catch(() => {})
-					}
-				}
-			}
-		} catch (e) {
-			console.error('Error handling media unhandledrejection', e)
-		}
-		// swallow this specific rejection to avoid replacing the UI
-		console.warn('Swallowed media playback unhandled rejection:', reason)
+	if (lower.includes('no supported source') || lower.includes('failed to load because no supported source') || lower.includes('failed to load') || lower.includes('network') || lower.includes('cors')) {
+		console.warn('[Main] Swallowed media/network error (likely audio codec/CORS):', reason)
+		// Prevent default error display — let Player component handle it
+		ev.preventDefault()
 		return
 	}
 	const root = document.getElementById('root')

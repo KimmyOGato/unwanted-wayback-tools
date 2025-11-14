@@ -31,6 +31,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -248,14 +249,16 @@ ipcMain.handle('search-lostmyspace', async (event, { q = '' } = {}) => {
     const url = `https://lostmyspace.com/?${params.toString()}`
     console.log('[Main][search-lostmyspace] requesting:', url)
 
-    // Retry/backoff for transient network issues
-    const attempts = 3
+    // Retry/backoff for transient network issues — exponential backoff with longer timeouts
+    const attempts = 6
+    const backoffDelays = [1000, 2000, 4000, 8000, 16000, 30000] // ms between attempts
     let lastErr = null
     let res = null
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
+        console.log(`[Main][search-lostmyspace] attempt ${attempt}/${attempts}...`)
         res = await fetch(url, {
-          timeout: 60000,
+          timeout: 90000, // increased timeout
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         })
         console.log(`[Main][search-lostmyspace] attempt ${attempt} status:`, res.status)
@@ -265,9 +268,10 @@ ipcMain.handle('search-lostmyspace', async (event, { q = '' } = {}) => {
         console.log(`[Main][search-lostmyspace] attempt ${attempt} failed:`, e.message)
         lastErr = e
       }
-      // backoff before retrying
+      // exponential backoff before retrying
       if (attempt < attempts) {
-        const wait = attempt === 1 ? 1000 : 3000
+        const wait = backoffDelays[attempt - 1] || 30000
+        console.log(`[Main][search-lostmyspace] waiting ${wait}ms before retry...`)
         await new Promise((r) => setTimeout(r, wait))
       }
     }
