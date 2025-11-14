@@ -29,6 +29,26 @@ const apiHandler = {
   }
 }
 
+// Expose window controls
+try {
+  apiHandler.window = {
+    minimize: () => ipcRenderer.send('window-minimize'),
+    toggleMaximize: () => ipcRenderer.send('window-toggle-maximize'),
+    close: () => ipcRenderer.send('window-close'),
+    isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  }
+} catch (e) {
+  console.error('[Preload] Failed to expose window controls', e)
+}
+
+try {
+  apiHandler.onWindowState = (cb) => {
+    ipcRenderer.on('window-is-maximized', (e, val) => cb(val))
+  }
+} catch (e) {
+  console.error('[Preload] Failed to expose onWindowState', e)
+}
+
 // menu-open listener
 try {
   apiHandler.onMenuOpen = (cb) => {
@@ -54,6 +74,22 @@ try {
   console.log('[Preload] Successfully exposed window.api')
 } catch (err) {
   console.error('[Preload] Failed to expose window.api:', err)
+}
+
+// Expose updater API
+try {
+  contextBridge.exposeInMainWorld('updater', {
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    downloadUpdate: () => ipcRenderer.invoke('download-update'),
+    installUpdate: () => ipcRenderer.invoke('install-update'),
+    onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (e, info) => cb(info)),
+    onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', (e, info) => cb(info)),
+    onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (e, info) => cb(info)),
+    onUpdateError: (cb) => ipcRenderer.on('update-error', (e, err) => cb(err))
+  })
+  console.log('[Preload] Exposed updater API')
+} catch (e) {
+  console.error('[Preload] Failed to expose updater API', e)
 }
 
 // expose additional search APIs

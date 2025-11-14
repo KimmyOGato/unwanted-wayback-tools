@@ -124,21 +124,29 @@ export default function Mp3Search() {
       <div className="results-list">
         <h4>Results ({results.length})</h4>
         <ul>
-          {results.map((it, idx) => (
-            <li key={idx} className="mp3-item">
-              <div className="res-left">
-                <div className="res-title">{it.title}</div>
-                <div className="res-meta">{it.url}</div>
-              </div>
-              <div className="res-right">
-                <Player src={it.url} />
-                <div className="res-actions">
-                  <button onClick={() => handleDownload(it)}>Download</button>
-                  <button onClick={() => window.api.openExternal(it.url)}>Site</button>
+          {results.map((it, idx) => {
+            // Try to show a short friendly URL and domain
+            let display = it.url || ''
+            try {
+              const u = new URL(it.url)
+              display = `${u.hostname}${u.pathname}`
+            } catch (e) {}
+            return (
+              <li key={idx} className="mp3-item">
+                <div className="res-left">
+                  <div className="res-title"><a href="#" onClick={(e) => { e.preventDefault(); window.api.openExternal(it.url) }}>{it.title || display.split('/').pop() || 'Unknown'}</a></div>
+                  <div className="res-meta" title={it.url}>{display}</div>
                 </div>
-              </div>
-            </li>
-          ))}
+                <div className="res-right">
+                  <Player src={it.url} />
+                  <div className="res-actions">
+                    <button onClick={() => handleDownload(it)}>Download</button>
+                    <button onClick={() => window.api.openExternal(it.url)}>Site</button>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
         </ul>
       </div>
     </div>

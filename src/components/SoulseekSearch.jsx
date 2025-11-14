@@ -27,6 +27,7 @@ export default function SoulseekSearch() {
   const [port, setPort] = useState(2242)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [credsLoaded, setCredsLoaded] = useState(false)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('')
   const [results, setResults] = useState([])
@@ -46,6 +47,37 @@ export default function SoulseekSearch() {
       })
     }
   }, [results])
+
+  // Load saved Soulseek credentials from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('soulseekCreds')
+      if (raw) {
+        const obj = JSON.parse(raw)
+        if (obj) {
+          if (obj.host) setHost(obj.host)
+          if (obj.port) setPort(obj.port)
+          if (obj.username) setUsername(obj.username)
+          if (obj.password) setPassword(obj.password)
+        }
+      }
+    } catch (e) {
+      console.warn('[Soulseek] failed to load saved creds', e)
+    }
+    setCredsLoaded(true)
+  }, [])
+
+  // Persist credentials automatically when they change
+  React.useEffect(() => {
+    // wait until initial load to avoid overwriting
+    if (!credsLoaded) return
+    try {
+      const obj = { host, port, username, password }
+      localStorage.setItem('soulseekCreds', JSON.stringify(obj))
+    } catch (e) {
+      console.warn('[Soulseek] failed to save creds', e)
+    }
+  }, [host, port, username, password, credsLoaded])
 
   const check = async () => {
     setStatus('Checking server...')
@@ -107,54 +139,63 @@ export default function SoulseekSearch() {
   }
 
   return (
-    <>
-      <div style={{ padding: 12 }}>
-      <h3>Soulseek</h3>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <input value={host} onChange={(e) => setHost(e.target.value)} placeholder='host' />
-        <input value={port} onChange={(e) => setPort(Number(e.target.value || 0))} style={{ width: 80 }} />
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder='username' />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder='password' type='password' />
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder='search query' style={{ flex: 1 }} />
-        <button onClick={doSearch}>Search</button>
-        <button onClick={check}>Check</button>
+    <div className="soulseek-search">
+      <div className="soulseek-header">
+        <h3>Soulseek</h3>
+        <div className="soulseek-conn">
+          <input className="ss-input" value={host} onChange={(e) => setHost(e.target.value)} placeholder="host" />
+          <input className="ss-input ss-port" value={port} onChange={(e) => setPort(Number(e.target.value || 0))} placeholder="port" />
+        </div>
+        <div className="soulseek-creds">
+          <input className="ss-input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
+          <input className="ss-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" type="password" />
+        </div>
+        <div className="soulseek-searchbar">
+          <input className="ss-input ss-query" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search query" />
+          <div className="soulseek-actions">
+            <button className="btn" onClick={doSearch}>Search</button>
+            <button className="btn btn-ghost" onClick={check}>Check</button>
+          </div>
+        </div>
+        <div className="soulseek-status"><strong>Status:</strong> <span className="status-text">{status}</span></div>
       </div>
 
-      <div style={{ marginBottom: 8 }}><strong>Status:</strong> {status}</div>
-
-      <div style={{ maxHeight: '60vh', overflow: 'auto', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 8 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', color: 'white' }}>
+      <div className="soulseek-results">
+        <table className="soulseek-table">
           <thead>
-            <tr style={{ textAlign: 'left', color: '#bbb', fontSize: 13 }}>
-              <th style={{ padding: '6px 8px' }}>User</th>
-              <th style={{ padding: '6px 8px', width: 120 }}>Speed</th>
-              <th style={{ padding: '6px 8px', width: 80 }}>Slots</th>
-              <th style={{ padding: '6px 8px', width: 120 }}>Size</th>
-              <th style={{ padding: '6px 8px' }}>Filename</th>
-              <th style={{ padding: '6px 8px', width: 140 }}>Actions</th>
+            <tr>
+              <th>User</th>
+              <th className="col-speed">Speed</th>
+              <th className="col-slots">Slots</th>
+              <th className="col-size">Size</th>
+              <th>Filename</th>
+              <th className="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             {results.map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                <td style={{ padding: '8px' }}>{r.user || r.username || ''}</td>
-                <td style={{ padding: '8px' }}>{humanSpeed(r.speed || r.upload || '')}</td>
-                <td style={{ padding: '8px' }}>{r.slots ? 'Yes' : 'No'}</td>
-                <td style={{ padding: '8px' }}>{humanSize(r.size)}</td>
-                <td style={{ padding: '8px' }}>{renderFilename(r)}</td>
-                <td style={{ padding: '8px' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={() => startDownload(r, i)}>Download</button>
-                    <button onClick={() => { setDebugIndex(i); setDebugPayload(r) }}>Debug</button>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
-                      {itemStatus[i] ? itemStatus[i].status : ''}
-                      {itemStatus[i] && itemStatus[i].message ? ` — ${itemStatus[i].message}` : ''}
-                      {itemStatus[i] && itemStatus[i].log ? ` (log: ${itemStatus[i].log})` : ''}
-                    </div>
+              <tr key={i} className="soulseek-row">
+                <td className="td-user">{r.user || r.username || ''}</td>
+                <td className="td-speed">{humanSpeed(r.speed || r.upload || '')}</td>
+                <td className="td-slots">{r.slots ? 'Yes' : 'No'}</td>
+                <td className="td-size">{humanSize(r.size)}</td>
+                <td className="td-file">{renderFilename(r)}</td>
+                <td className="td-actions">
+                  <div className="action-wrap">
+                    {/* Determine availability: prefer explicit flags, fallback to slots truthiness */}
+                    {(() => {
+                      const avail = !!(r.available || r.open || (typeof r.slots !== 'undefined' && !!r.slots))
+                      return (
+                        <div className={`availability ${avail ? 'available' : 'unavailable'}`} title={avail ? 'Available for download' : 'Not available (no open slots or blocked)'}>
+                          <span className="avail-dot" />
+                          <span className="avail-text">{avail ? 'Available' : 'Unavailable'}</span>
+                        </div>
+                      )
+                    })()}
+
+                    <button className="btn" onClick={() => startDownload(r, i)} disabled={!(r.available || r.open || (typeof r.slots !== 'undefined' && !!r.slots))}>Download</button>
+                    <button className="btn btn-ghost" onClick={() => { setDebugIndex(i); setDebugPayload(r) }}>Debug</button>
+                    <div className="item-status">{itemStatus[i] ? itemStatus[i].status : ''}{itemStatus[i] && itemStatus[i].message ? ` — ${itemStatus[i].message}` : ''}</div>
                   </div>
                 </td>
               </tr>
@@ -162,10 +203,9 @@ export default function SoulseekSearch() {
           </tbody>
         </table>
       </div>
-      </div>
-      {/* render debug modal when requested */}
+
       <DebugModal open={debugIndex !== null} payload={debugPayload} onClose={() => { setDebugIndex(null); setDebugPayload(null) }} />
-    </>
+    </div>
   )
 }
 

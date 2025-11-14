@@ -16,6 +16,8 @@ if (!window.api) {
 }
 
 export default function App() {
+  const [isMaximized, setIsMaximized] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState(null)
   const [lang, setLang] = useState('pt-BR')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -136,6 +138,19 @@ export default function App() {
         } catch (e) { }
       })
     }
+    // Window state listener
+    if (window.api && window.api.onWindowState) {
+      window.api.onWindowState((val) => setIsMaximized(Boolean(val)))
+    }
+
+    // Updater listeners
+    if (window.updater) {
+      window.updater.onUpdateAvailable((info) => setUpdateStatus({ type: 'available', info }))
+      window.updater.onUpdateNotAvailable(() => setUpdateStatus({ type: 'not-available' }))
+      window.updater.onUpdateDownloaded((info) => setUpdateStatus({ type: 'downloaded', info }))
+      window.updater.onUpdateError((err) => setUpdateStatus({ type: 'error', error: err }))
+    }
+
   }, [])
 
   const handleSearch = async (link, type, filters) => {
@@ -189,64 +204,54 @@ export default function App() {
   }
 
   const paginatedItems = items.slice((currentPage - 1) * 20, currentPage * 20)
-
   return (
     <div className={`app ${theme}`}>
-      <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
-      <main className="main-area">
-      <header className="header">
-        <div className="header-inner">
-          <div className="brand">
-            <div className="brand-accent" />
-            <div className="brand-text">
-              <h1>{locale.title}</h1>
-              <p className="subtitle">{locale.subtitle}</p>
+      <div className="content-area">
+        <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
+        <main className="main-area">
+          <header className="header">
+            <div className="header-inner">
+              <div className="brand">
+                <div className="brand-accent" />
+                <div className="brand-text">
+                  <h1>{locale.title}</h1>
+                  <p className="subtitle">{locale.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="lang-selector">
+                <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                  <option value="pt-BR">Português (BR)</option>
+                  <option value="en-US">English (US)</option>
+                </select>
+              </div>
             </div>
-          </div>
+          </header>
 
-          <div className="lang-selector">
-            <select value={lang} onChange={(e) => setLang(e.target.value)}>
-              <option value="pt-BR">Português (BR)</option>
-              <option value="en-US">English (US)</option>
-            </select>
-          </div>
-        </div>
-      </header>
+          {mode === 'wayback' && <WaybackSimpleSearch />}
+          {mode === 'mp3' && <Mp3Search />}
+          {mode === 'lostmyspace' && <LostMySpace />}
+          {mode === 'soulseek' && <SoulseekSearch />}
 
-      {mode === 'wayback' && (
-        <WaybackSimpleSearch />
-      )}
+          {mode === 'credits' && (
+            <div className="credits">
+              <h3>Credits</h3>
+              <ul>
+                <li><a href="https://github.com/KimmyOGato" target="_blank" rel="noreferrer">KimmyOGato</a></li>
+                <li><a href="https://github.com/Oyukihiro/Unwanted" target="_blank" rel="noreferrer">Oyukihiro / Unwanted</a></li>
+              </ul>
+            </div>
+          )}
 
-      {mode === 'mp3' && (
-        <Mp3Search />
-      )}
-
-      {mode === 'lostmyspace' && (
-        <LostMySpace />
-      )}
-
-      {mode === 'soulseek' && (
-        <SoulseekSearch />
-      )}
-
-      {mode === 'credits' && (
-        <div className="credits">
-          <h3>Credits</h3>
-          <ul>
-            <li><a href="https://github.com/KimmyOGato" target="_blank" rel="noreferrer">KimmyOGato</a></li>
-            <li><a href="https://github.com/Oyukihiro/Unwanted" target="_blank" rel="noreferrer">Oyukihiro / Unwanted</a></li>
-          </ul>
-        </div>
-      )}
-
-      {mode === 'downloads' && (
-        <DownloadStatus
-          queue={downloadQueue}
-          status={downloadStatus}
-          locale={locale}
-        />
-      )}
-      </main>
+          {mode === 'downloads' && (
+            <DownloadStatus
+              queue={downloadQueue}
+              status={downloadStatus}
+              locale={locale}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }

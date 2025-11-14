@@ -2,6 +2,17 @@ const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+// Ensure application name is consistent in menus and window titles
+try { app.name = 'Unwanted Tools' } catch (e) { /* ignore */ }
+let autoUpdater
+try {
+  // electron-updater is optional in dev; require if available
+  // eslint-disable-next-line global-require
+  const { autoUpdater: _au } = require('electron-updater')
+  autoUpdater = _au
+} catch (e) {
+  console.log('[Main] electron-updater not available:', e && e.message)
+}
 // Some node/http libraries (undici) expect Web `File` to exist.
 // Electron/Node may not provide it in all runtimes; provide a minimal polyfill
 // before loading `node-fetch`/undici to avoid ReferenceError: File is not defined
@@ -35,7 +46,8 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    frame: false,
+    // Use native frame in production (when not dev). In dev we keep frameless for easier testing.
+    frame: !isDev,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -73,6 +85,71 @@ function createWindow() {
   win.on('closed', () => {
     // Clear reference so we can re-open later
     if (mainWindow === win) mainWindow = null
+  })
+}
+
+// Window control IPC
+ipcMain.on('window-minimize', () => {
+  try { if (mainWindow) mainWindow.minimize() } catch (e) { console.error('[Main] window-minimize', e) }
+})
+ipcMain.on('window-close', () => {
+  try { if (mainWindow) mainWindow.close() } catch (e) { console.error('[Main] window-close', e) }
+})
+ipcMain.on('window-toggle-maximize', () => {
+  try {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+    try { mainWindow.webContents.send('window-is-maximized', mainWindow.isMaximized()) } catch (e) {}
+  } catch (e) { console.error('[Main] window-toggle-maximize', e) }
+})
+ipcMain.handle('window-is-maximized', () => {
+  try { return mainWindow ? mainWindow.isMaximized() : false } catch (e) { return false }
+})
+
+// Expose frameless/native frame state to renderer
+// Note: frameless detection removed; renderer uses native window chrome by default
+
+// Auto-update setup (if electron-updater is available)
+if (autoUpdater) {
+  try {
+    autoUpdater.autoDownload = false
+    autoUpdater.logger = console
+    autoUpdater.on('error', (err) => {
+      console.error('[Main][AutoUpdater] error', err)
+      try { if (mainWindow) mainWindow.webContents.send('update-error', String(err)) } catch (e) {}
+    })
+    autoUpdater.on('update-available', (info) => {
+      console.log('[Main][AutoUpdater] update-available', info)
+      try { if (mainWindow) mainWindow.webContents.send('update-available', info) } catch (e) {}
+    })
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('[Main][AutoUpdater] update-not-available', info)
+      try { if (mainWindow) mainWindow.webContents.send('update-not-available', info) } catch (e) {}
+    })
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[Main][AutoUpdater] update-downloaded', info)
+      try { if (mainWindow) mainWindow.webContents.send('update-downloaded', info) } catch (e) {}
+    })
+  } catch (e) {
+    console.error('[Main] autoUpdater setup failed', e)
+  }
+
+  ipcMain.handle('check-for-updates', async () => {
+    try { autoUpdater.checkForUpdates() } catch (e) { return { error: String(e) } }
+    return { ok: true }
+  })
+
+  ipcMain.handle('download-update', async () => {
+    try { await autoUpdater.downloadUpdate(); return { ok: true } } catch (e) { return { error: String(e) } }
+  })
+
+  ipcMain.handle('install-update', async () => {
+    try {
+      // quitAndInstall will restart the app
+      autoUpdater.quitAndInstall()
+      return { ok: true }
+    } catch (e) { return { error: String(e) } }
   })
 }
 
@@ -173,7 +250,13 @@ function createAppMenu() {
   })
 
   const menu = Menu.buildFromTemplate(template)
-  Menu.setApplicationMenu(menu)
+  // On macOS we keep the application menu; on other platforms remove it
+  if (isMac) {
+    Menu.setApplicationMenu(menu)
+  } else {
+    // Remove the default application menu to avoid the native top bar
+    Menu.setApplicationMenu(null)
+  }
 }
 
 function parseWaybackInput(input) {
