@@ -1,7 +1,7 @@
 {
-  "name": "wayback-media-saver",
+  "name": "unwanted-tools",
   "version": "0.2.0",
-  "description": "Desktop app to fetch and save images and media from the Wayback Machine",
+  "description": "Unwanted Tools - find archived media across Wayback, MP3 Search and LostMySpace",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -16,12 +16,13 @@
     "generate-icon": "npm run write-icon && png-to-ico build/icon.png > build/icon.ico",
     "prepare-build": "npm run generate-icon"
   },
-  "author": "",
+  "author": "KimmyOGato",
   "license": "MIT",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "cheerio": "^1.0.0-rc.12"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
@@ -30,12 +31,12 @@
     "concurrently": "^8.0.0",
     "wait-on": "^7.0.0",
     "electron-builder": "^24.6.0",
-    "png-to-ico": "^1.1.0"
+    "png-to-ico": "^1.0.0"
   }
   ,
   "build": {
-    "appId": "com.example.waybackmediasaver",
-    "productName": "Wayback Media Saver",
+    "appId": "com.kimmyogato.unwantedtools",
+    "productName": "Unwanted Tools",
     "files": [
       "dist/**/*",
       "electron/**/*",

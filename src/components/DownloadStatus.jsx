@@ -4,7 +4,7 @@ export default function DownloadStatus({ queue, status, locale }) {
       <h3>{locale.status}</h3>
       <div className="queue">
         {queue.map((item) => {
-          const s = status[item.id] || { status: 'queued' }
+          const s = status[item.filename] || { status: 'queued' }
           return (
             <div key={item.id} className={`queue-item ${s.status}`}>
               <div className="queue-filename">{item.filename}</div>

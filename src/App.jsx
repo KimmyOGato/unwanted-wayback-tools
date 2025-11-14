@@ -1,9 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocale, formatMessage } from '../locales'
-import SearchForm from './SearchForm'
-import ResultsGrid from './ResultsGrid'
-import DownloadStatus from './DownloadStatus'
+import { useLocale, formatMessage } from './locales'
+import SearchForm from './components/SearchForm'
+import ResultsGrid from './components/ResultsGrid'
+import DownloadStatus from './components/DownloadStatus'
+import Menu from './components/Menu'
+import WaybackAdvanced from './components/WaybackAdvanced'
+import Mp3Search from './components/Mp3Search'
+import LostMySpace from './components/LostMySpace'
 import './App.css'
+
+// Check if window.api is available (Electron preload injection)
+if (!window.api) {
+  throw new Error('Electron IPC API not available. This app must run inside Electron with preload script enabled.')
+}
 
 export default function App() {
   const [lang, setLang] = useState('pt-BR')
@@ -14,6 +23,8 @@ export default function App() {
   const [downloadStatus, setDownloadStatus] = useState({})
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [mode, setMode] = useState('wayback')
+  const [theme, setTheme] = useState('dark')
   const downloadWorkerRef = useRef(null)
 
   const locale = useLocale(lang)
@@ -33,7 +44,7 @@ export default function App() {
 
       setDownloadStatus(prev => ({
         ...prev,
-        [item.id]: { status: 'downloading', received: 0, total: 0 }
+        [item.filename]: { status: 'downloading', received: 0, total: 0 }
       }))
 
       try {
@@ -46,18 +57,26 @@ export default function App() {
         if (res.error) {
           setDownloadStatus(prev => ({
             ...prev,
-            [item.id]: { status: 'error', message: res.error }
+            [item.filename]: { status: 'error', message: res.error }
           }))
         } else {
           setDownloadStatus(prev => ({
             ...prev,
-            [item.id]: { status: 'completed' }
+            [item.filename]: { status: 'completed' }
           }))
+          // autoplay if requested and path available
+          try {
+            if (item.playAfter && res.path) {
+              const fileUrl = `file://${res.path.replace(/\\\\/g, '/')}`
+              const audio = new Audio(fileUrl)
+              audio.play().catch(() => {})
+            }
+          } catch (e) { /* ignore playback errors */ }
         }
       } catch (e) {
         setDownloadStatus(prev => ({
           ...prev,
-          [item.id]: { status: 'error', message: String(e) }
+          [item.filename]: { status: 'error', message: String(e) }
         }))
       }
 
@@ -70,6 +89,17 @@ export default function App() {
     }
   }, [downloadQueue])
 
+  // Listen to enqueue-download events from other components
+  useEffect(() => {
+    const onEnqueue = (e) => {
+      const detail = e.detail
+      if (!detail) return
+      setDownloadQueue(prev => [...prev, detail])
+    }
+    window.addEventListener('enqueue-download', onEnqueue)
+    return () => window.removeEventListener('enqueue-download', onEnqueue)
+  }, [])
+
   // Listen to progress events
   useEffect(() => {
     window.api.onDownloadProgress((data) => {
@@ -78,6 +108,22 @@ export default function App() {
         [data.filename]: { ...prev[data.filename], received: data.received, total: data.total }
       }))
     })
+    if (window.api.onDownloadComplete) {
+      window.api.onDownloadComplete((data) => {
+        setDownloadStatus(prev => ({
+          ...prev,
+          [data.filename]: data.error ? { status: 'error', message: data.error } : { status: 'completed' }
+        }))
+        try {
+          const q = downloadQueue.find(i => i.filename === data.filename)
+          if (q && q.playAfter && !data.error && data.path) {
+            const fileUrl = `file://${data.path.replace(/\\\\/g, '/')}`
+            const audio = new Audio(fileUrl)
+            audio.play().catch(() => {})
+          }
+        } catch (e) { /* ignore */ }
+      })
+    }
   }, [])
 
   const handleSearch = async (link, type, filters) => {
@@ -107,6 +153,10 @@ export default function App() {
     setLoading(false)
   }
 
+  const handleModeSelect = (m) => setMode(m)
+
+  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+
   const handleDownload = async (indices) => {
     const folder = await window.api.selectFolder()
     if (!folder) return
@@ -129,7 +179,9 @@ export default function App() {
   const paginatedItems = items.slice((currentPage - 1) * 20, currentPage * 20)
 
   return (
-    <div className="app">
+    <div className={`app ${theme}`}>
+      <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
+      <main className="main-area">
       <header className="header">
         <h1>{locale.title}</h1>
         <p>{locale.subtitle}</p>
@@ -141,46 +193,39 @@ export default function App() {
         </div>
       </header>
 
-      <SearchForm locale={locale} loading={loading} onSearch={handleSearch} />
-
-      {items.length > 0 && (
+      {mode === 'wayback' && (
         <>
-          <div className="pagination">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-              {locale.prev}
-            </button>
-            <span>{formatMessage(locale.page, { page: currentPage, total: totalPages })}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-              {locale.next}
-            </button>
-          </div>
-
-          <ResultsGrid
-            items={paginatedItems}
-            selected={selectedIndices}
-            onSelect={setSelectedIndices}
-            locale={locale}
-          />
-
-          <div className="actions">
-            <button
-              className="download-btn"
-              onClick={() => handleDownload(Array.from(selectedIndices))}
-              disabled={selectedIndices.size === 0}
-            >
-              {locale.download_selected} ({selectedIndices.size})
-            </button>
-          </div>
+          <SearchForm locale={locale} loading={loading} onSearch={handleSearch} />
+          <WaybackAdvanced />
         </>
       )}
 
-      {downloadQueue.length > 0 && (
+      {mode === 'mp3' && (
+        <Mp3Search />
+      )}
+
+      {mode === 'lostmyspace' && (
+        <LostMySpace />
+      )}
+
+      {mode === 'credits' && (
+        <div className="credits">
+          <h3>Credits</h3>
+          <ul>
+            <li><a href="https://github.com/KimmyOGato" target="_blank" rel="noreferrer">KimmyOGato</a></li>
+            <li><a href="https://github.com/Oyukihiro/Unwanted" target="_blank" rel="noreferrer">Oyukihiro / Unwanted</a></li>
+          </ul>
+        </div>
+      )}
+
+      {(downloadQueue.length > 0 || Object.keys(downloadStatus).length > 0) && (
         <DownloadStatus
           queue={downloadQueue}
           status={downloadStatus}
           locale={locale}
         />
       )}
+      </main>
     </div>
   )
 }

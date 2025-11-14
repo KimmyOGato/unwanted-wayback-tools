@@ -2,4 +2,68 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+function renderApp() {
+	try {
+		ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+	} catch (err) {
+		console.error('Render error:', err)
+		const root = document.getElementById('root')
+		if (root) {
+			root.innerText = 'Application error: ' + (err && err.message ? err.message : String(err)) + '\n\nSee console for details.'
+		}
+	}
+}
+
+// Global error handler to show unexpected errors in production builds
+window.addEventListener('error', (ev) => {
+	const root = document.getElementById('root')
+	if (root) {
+		root.innerText = 'Unhandled error: ' + (ev && ev.error && ev.error.message ? ev.error.message : ev.message)
+	}
+	console.error('Unhandled error event', ev)
+})
+
+window.addEventListener('unhandledrejection', (ev) => {
+	// Intercept common media-playback failures and offer download+play fallback
+	const reason = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : ''
+	const msg = String(reason || '')
+	const lower = msg.toLowerCase()
+	if (lower.includes('no supported source') || lower.includes('failed to load because no supported source') || lower.includes('failed to load')) {
+		try {
+			const active = document.activeElement
+			if (active && active.tagName === 'AUDIO') {
+				const src = active.currentSrc || active.src
+				if (src) {
+					// Ask the user to download and play locally
+					if (confirm('Playback failed (unsupported source). Download the file and play locally instead?')) {
+						window.api.selectFolder().then(folder => {
+							if (!folder) return
+							const filename = src.split('/').pop()
+							window.api.downloadResource({ url: src, destFolder: folder, filename }).then(res => {
+								if (res && res.path) {
+									const fileUrl = `file://${res.path.replace(/\\\\/g, '/')}`
+									try {
+										active.src = fileUrl
+										active.play().catch(() => {})
+									} catch (e) { /* ignore */ }
+								}
+							}).catch(() => {})
+						}).catch(() => {})
+					}
+				}
+			}
+		} catch (e) {
+			console.error('Error handling media unhandledrejection', e)
+		}
+		// swallow this specific rejection to avoid replacing the UI
+		console.warn('Swallowed media playback unhandled rejection:', reason)
+		return
+	}
+	const root = document.getElementById('root')
+	if (root) {
+		root.innerText = 'Unhandled promise rejection: ' + (ev && ev.reason ? (ev.reason.message || String(ev.reason)) : 'unknown')
+	}
+	console.error('Unhandled rejection', ev)
+})
+
+renderApp()
