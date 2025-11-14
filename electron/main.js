@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 // Some node/http libraries (undici) expect Web `File` to exist.
 // Electron/Node may not provide it in all runtimes; provide a minimal polyfill
 // before loading `node-fetch`/undici to avoid ReferenceError: File is not defined
@@ -18,6 +19,7 @@ if (typeof global.File === 'undefined') {
 
 const fetch = require('node-fetch')
 const cheerio = require('cheerio')
+const soulseek = require('./soulseek')
 
 // Detect development mode: check if dist folder exists and has index.html
 // If not, we're in dev mode; also check NODE_ENV
@@ -26,6 +28,8 @@ let isDev = !fs.existsSync(path.join(__dirname, '../dist/index.html')) || proces
 console.log('[Main] isDev:', isDev)
 console.log('[Main] NODE_ENV:', process.env.NODE_ENV)
 console.log('[Main] dist/index.html exists:', fs.existsSync(path.join(__dirname, '../dist/index.html')))
+
+let mainWindow = null
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -38,6 +42,9 @@ function createWindow() {
       nodeIntegration: false
     }
   })
+
+  // Keep global reference so menu handlers can act on it
+  mainWindow = win
 
   // Set window title
   win.setTitle('Unwanted Tools')
@@ -62,10 +69,21 @@ function createWindow() {
   win.webContents.on('crashed', () => {
     console.error('[Main] Renderer process crashed')
   })
+
+  win.on('closed', () => {
+    // Clear reference so we can re-open later
+    if (mainWindow === win) mainWindow = null
+  })
 }
 
 app.whenReady().then(() => {
   createWindow()
+  // Create the application menu once the app is ready
+  try {
+    createAppMenu()
+  } catch (e) {
+    console.error('[Main] createAppMenu failed', e)
+  }
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -76,22 +94,202 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
 
+function createAppMenu() {
+  const isMac = process.platform === 'darwin'
+
+  const template = []
+
+  if (isMac) {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    })
+  }
+
+  template.push({
+    label: 'File',
+    submenu: [
+      {
+        label: 'Open Soulseek',
+        click: () => {
+          try {
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore()
+              mainWindow.focus()
+              mainWindow.webContents.send('menu-open-mode', 'soulseek')
+            }
+          } catch (e) { console.error('[Main][Menu] open soulseek', e) }
+        }
+      },
+      {
+        label: 'Open Main Window',
+        click: () => {
+          try {
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore()
+              mainWindow.focus()
+            } else {
+              createWindow()
+            }
+          } catch (e) { console.error('[Main][Menu] open main window', e) }
+        }
+      },
+      { type: 'separator' },
+      { role: 'quit', label: 'Quit' }
+    ]
+  })
+
+  template.push({
+    label: 'View',
+    submenu: [
+      { role: 'reload' },
+      { label: 'Toggle DevTools', accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I', click: () => { if (mainWindow) mainWindow.webContents.toggleDevTools() } },
+      { type: 'separator' },
+      { role: 'togglefullscreen' }
+    ]
+  })
+
+  template.push({
+    label: 'Window',
+    submenu: [
+      { label: 'Minimize', click: () => { if (mainWindow) mainWindow.minimize() }, accelerator: 'Ctrl+M' },
+      { label: 'Close', click: () => { if (mainWindow) mainWindow.close() } }
+    ]
+  })
+
+  template.push({
+    label: 'Help',
+    submenu: [
+      { label: 'About', click: () => { dialog.showMessageBox({ type: 'info', title: 'About', message: 'Unwanted Tools', detail: 'Built with Electron + Vite' }) } }
+    ]
+  })
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
 function parseWaybackInput(input) {
   try {
     const u = new URL(input)
     if (u.hostname.includes('web.archive.org')) {
-      const parts = u.pathname.split('/').filter(Boolean)
-      const webIdx = parts.indexOf('web')
-      if (webIdx >= 0) {
-        const stamp = parts[webIdx + 1]
-        const rest = parts.slice(webIdx + 2).join('/')
-        const original = rest ? (rest.startsWith('http') ? rest : 'http://' + rest) : null
-        return { original, stamp }
+      // pathname can contain a full URL after the stamp (including http://),
+      // so use a regex to reliably extract stamp and original resource.
+      // Examples supported:
+      //  - /web/20020527110458/http://www.pulseultra.com/
+      //  - /web/*/http://example.com/
+      const m = (u.pathname || '').match(/^\/web\/([^/]+)\/(.+)$/)
+      if (m) {
+        const stamp = m[1] === '*' ? null : m[1]
+        // m[2] may contain encoded or raw url path — preserve as-is but normalize
+        let rest = m[2]
+        try {
+          // If rest already begins with a protocol, use directly; otherwise assume http
+          rest = rest.startsWith('http') ? rest : 'http://' + rest
+        } catch (e) {
+          rest = rest
+        }
+        return { original: rest, stamp }
       }
     }
     return { original: input, stamp: null }
   } catch (e) {
     return { original: input, stamp: null }
+  }
+}
+
+async function getResourcesFromArchivedPage(stamp, original) {
+  try {
+    const archivedPage = `https://web.archive.org/web/${stamp}/${original}`
+    const res = await fetch(archivedPage, { timeout: 20000 })
+    if (!res.ok) return { error: `HTTP ${res.status}` }
+    const body = await res.text()
+    if (!/\<\s*html/i.test(body)) return { items: [] }
+
+    const $ = cheerio.load(body)
+    const candidates = new Set()
+
+    const pushCandidate = (link) => {
+      if (!link) return
+      try {
+        // Some captures rewrite URLs inserting a /web/<stamp>.../ prefix on the original host.
+        // If we detect a pattern like /web/<stamp>.../http://..., extract the original URL.
+        const m = String(link).match(/\/web\/(\d+)[^\/]*\/(https?:\/\/.+)$/)
+        if (m) {
+          candidates.add(m[2])
+          return
+        }
+        const absolute = new URL(link, original).toString()
+        candidates.add(absolute)
+      } catch (e) { }
+    }
+
+    // img, picture/srcset, audio/video, anchors, data-attrs, inline styles
+    $('img[src], img[data-src]').each((i, el) => pushCandidate($(el).attr('src') || $(el).attr('data-src')))
+    $('source[src], source[srcset], img[srcset], [data-srcset]').each((i, el) => {
+      const s = $(el).attr('src') || $(el).attr('srcset') || $(el).attr('data-srcset')
+      if (!s) return
+      // srcset may contain multiple candidates separated by commas
+      s.split(',').forEach(part => {
+        const urlPart = part.trim().split(' ')[0]
+        pushCandidate(urlPart)
+      })
+    })
+    $('audio source[src], audio[src], video source[src], video[src]').each((i, el) => pushCandidate($(el).attr('src')))
+    $('a[href]').each((i, el) => {
+      const href = $(el).attr('href')
+      if (!href) return
+      const lower = href.toLowerCase()
+      if (lower.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp3|ogg|m4a|wav|mp4|mov)(\?|$)/) || lower.includes('media') || lower.includes('files')) {
+        pushCandidate(href)
+      }
+    })
+    $('[data-src], [data-href], [data-url]').each((i, el) => pushCandidate($(el).attr('data-src') || $(el).attr('data-href') || $(el).attr('data-url')))
+    $('*[style]').each((i, el) => {
+      const st = $(el).attr('style') || ''
+      const m = st.match(/background-image:\s*url\(['"]?([^'\")]+)['"]?\)/i)
+      if (m && m[1]) pushCandidate(m[1])
+    })
+
+    // Build items: normalize each candidate into a web.archive.org archived URL using the provided stamp
+    const items = []
+    const guessMime = (urlStr) => {
+      try {
+        const p = new URL(urlStr).pathname
+        const ext = (p.split('.').pop() || '').toLowerCase()
+        const map = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+          mp3: 'audio/mpeg', ogg: 'audio/ogg', m4a: 'audio/mp4', wav: 'audio/wav',
+          mp4: 'video/mp4', mov: 'video/quicktime'
+        }
+        return map[ext] || null
+      } catch (e) { return null }
+    }
+
+    for (const cand of Array.from(candidates)) {
+      try {
+        const absolute = new URL(cand, original).toString()
+        let archivedUrl = ''
+        // If candidate already mentions web.archive.org, keep it
+        if (absolute.includes('web.archive.org')) archivedUrl = absolute
+        else if (stamp && stamp !== '*') archivedUrl = `https://web.archive.org/web/${stamp}/${absolute}`
+        else archivedUrl = `https://web.archive.org/web/*/${absolute}`
+
+        const mimetype = guessMime(absolute)
+        items.push({ timestamp: stamp || null, original: absolute, mimetype, archived: archivedUrl, length: 0 })
+      } catch (e) { /* ignore */ }
+    }
+
+    return { items }
+  } catch (err) {
+    return { error: String(err) }
   }
 }
 
@@ -108,10 +306,31 @@ ipcMain.handle('fetch-resources', async (event, inputLink, filters = {}) => {
   const seen = new Set()
 
   for (const l of links) {
-    const { original } = parseWaybackInput(l)
+    const { original, stamp } = parseWaybackInput(l)
     if (!original) continue
 
-    // Build CDX query with optional date filters
+    // If user provided a Wayback link with a timestamp, fetch the archived HTML
+    // and extract embedded resources (images, audio, video) for that capture.
+    if (stamp) {
+      try {
+        const res = await getResourcesFromArchivedPage(stamp, original)
+        if (res && res.items) {
+          for (const it of res.items) {
+            const key = `${it.timestamp}::${it.original}`
+            if (seen.has(key)) continue
+            seen.add(key)
+            aggregate.push(it)
+          }
+        } else if (res && res.error) {
+          console.error('[Main] fetch-resources archived-page error for', l, res.error)
+        }
+      } catch (err) {
+        console.error('[Main] fetch-resources archived-page error for', l, err)
+      }
+      continue
+    }
+
+    // Build CDX query with optional date filters for non-stamped inputs
     let cdxUrl = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(original)}&output=json&fl=timestamp,original,mimetype,length&filter=statuscode:200&collapse=digest&limit=10000`
 
     if (filters.from) {
@@ -545,5 +764,220 @@ ipcMain.handle('open-external', async (event, url) => {
     return { ok: true }
   } catch (e) {
     return { error: String(e) }
+  }
+})
+
+// Soulseek: check server, search and download handlers
+ipcMain.handle('soulseek-check', async (event, { host = 'server.slsknet.org', port = 2242 } = {}) => {
+  try {
+    const res = await soulseek.checkServer(host, port, 5000)
+    return res
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('soulseek-has-client', async () => {
+  return { available: soulseek.hasClient }
+})
+
+ipcMain.handle('soulseek-search', async (event, { host, port, username, password, query } = {}) => {
+  if (!soulseek.hasClient) return { error: 'missing-soulseek-lib', message: 'No Soulseek client library installed. Install a compatible package (e.g. slsk-client) and restart the app.' }
+  try {
+    const client = await soulseek.createClient({ host, port, username, password })
+    if (!client) return { error: 'client-init-failed' }
+    // library-specific API: attempt common patterns (promisify callback APIs)
+    if (client.search) {
+      return await new Promise((resolve) => {
+        try {
+          client.search({ req: query, timeout: 5000 }, (err, res) => {
+            if (err) return resolve({ error: String(err) })
+            return resolve({ items: res || [] })
+          })
+        } catch (e) { return resolve({ error: String(e) }) }
+      })
+    }
+    if (client.find) {
+      return await new Promise((resolve) => {
+        try {
+          client.find(query, (err, res) => {
+            if (err) return resolve({ error: String(err) })
+            return resolve({ items: res || [] })
+          })
+        } catch (e) { return resolve({ error: String(e) }) }
+      })
+    }
+    return { error: 'unsupported-client-api' }
+  } catch (e) {
+    return { error: String(e), stack: e && e.stack ? String(e.stack) : undefined }
+  }
+})
+
+ipcMain.handle('soulseek-download', async (event, payload = {}) => {
+  const { fileId, file, peer, destination, creds } = payload || {}
+  if (!soulseek.hasClient) return { error: 'missing-soulseek-lib' }
+  try {
+    const client = await soulseek.createClient(creds)
+    if (!client) return { error: 'client-init-failed' }
+
+    // Normalize incoming file object from several possible shapes.
+    // Many clients expect the full search-result object (with `user`, `slots`, etc.),
+    // so preserve the original object when provided. If a raw string is passed,
+    // convert it into an object { file: string } to keep a consistent shape.
+    let fileObj = null
+    let originalItem = null
+    if (fileId && typeof fileId === 'object') {
+      originalItem = fileId
+      fileObj = fileId // keep full object (client often expects user + file fields)
+    } else if (fileId && typeof fileId === 'string') {
+      fileObj = { file: fileId }
+    } else if (file && typeof file === 'object') {
+      originalItem = file
+      fileObj = file
+    } else if (file && typeof file === 'string') {
+      fileObj = { file }
+    }
+
+    if (!fileObj) {
+      if (fileId && typeof fileId === 'string' && peer) {
+        return { error: 'missing-file-object', message: 'Provide the original search result object (contains `file` and `user`).' }
+      }
+      return { error: 'missing-file-object', message: 'Provide the search result file object when requesting download.' }
+    }
+
+    const filePathStr = (typeof fileObj === 'string') ? fileObj : (fileObj.file || fileObj.path || fileObj.name || fileObj.filename || '')
+    const filename = (filePathStr || '').toString().replace(/^@@/, '').split(/[\\/]/).pop() || `slsk_${Date.now()}`
+
+    // Normalize destination: accept folder or full file path
+    let outPath = ''
+    if (destination) {
+      try {
+        if (fs.existsSync(destination) && fs.lstatSync(destination).isDirectory()) {
+          outPath = path.join(destination, filename)
+        } else if (String(destination).endsWith('/') || String(destination).endsWith('\\')) {
+          outPath = path.join(destination, filename)
+        } else {
+          outPath = destination
+        }
+      } catch (e) {
+        outPath = destination
+      }
+    } else {
+      outPath = path.join(app.getPath('downloads') || os.tmpdir(), filename)
+    }
+
+    // Prepare logs directory
+    try { fs.mkdirSync(path.join(__dirname, '..', 'build', 'logs'), { recursive: true }) } catch (e) { }
+
+    // If client provides downloadStream (preferred) use it. Add timeouts
+    if (typeof client.downloadStream === 'function') {
+      try {
+        const stream = await new Promise((resolve, reject) => {
+          let settled = false
+          const timer = setTimeout(() => {
+            if (!settled) {
+              settled = true
+              return reject(new Error('downloadStream-callback-timeout'))
+            }
+          }, 30000)
+          try {
+            client.downloadStream({ file: fileObj }, (err, s) => {
+              if (settled) return
+              settled = true
+              clearTimeout(timer)
+              if (err) return reject(err)
+              return resolve(s)
+            })
+          } catch (e) {
+            if (!settled) { settled = true; clearTimeout(timer); reject(e) }
+          }
+        })
+
+        return await new Promise((resolve) => {
+          try {
+            const ws = fs.createWriteStream(outPath)
+            let received = 0
+            let finished = false
+            const streamTimer = setTimeout(() => {
+              if (!finished) {
+                finished = true
+                try { ws.end() } catch (e) {}
+                const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-stream-timeout-${Date.now()}.log`)
+                try { fs.writeFileSync(logPath, 'stream end timeout\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+                return resolve({ error: 'stream-timeout', log: logPath })
+              }
+            }, 5 * 60 * 1000)
+
+            stream.on('data', (chunk) => {
+              received += chunk.length
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('soulseek-download-progress', { filename, received }) } catch (e) {}
+            })
+            stream.on('end', () => { if (finished) return; finished = true; clearTimeout(streamTimer); ws.end(); resolve({ ok: true, path: outPath }) })
+            stream.on('error', (err) => {
+              if (finished) return; finished = true; clearTimeout(streamTimer)
+              try { ws.end() } catch (e) {}
+              const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-${Date.now()}.log`)
+              try { fs.writeFileSync(logPath, String(err.stack || err) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              return resolve({ error: String(err), log: logPath })
+            })
+            stream.pipe(ws)
+          } catch (e) {
+            const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-init-${Date.now()}.log`)
+            try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+            return resolve({ error: String(e), log: logPath })
+          }
+        })
+      } catch (e) {
+        const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-init-${Date.now()}.log`)
+        try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+        return { error: String(e), log: logPath }
+      }
+    }
+
+    // Fallback: callback-based download
+    if (typeof client.download === 'function') {
+      return await new Promise((resolve) => {
+        try {
+          let settled = false
+          const cbTimer = setTimeout(() => {
+            if (!settled) {
+              settled = true
+              const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-cb-timeout-${Date.now()}.log`)
+              try { fs.writeFileSync(logPath, 'download callback timeout\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              return resolve({ error: 'download-cb-timeout', log: logPath })
+            }
+          }, 120000)
+
+          client.download({ file: fileObj, path: outPath }, (err, data) => {
+            if (settled) return
+            settled = true
+            clearTimeout(cbTimer)
+            if (err) {
+              const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-cb-${Date.now()}.log`)
+              try { fs.writeFileSync(logPath, String(err.stack || err) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              return resolve({ error: String(err), log: logPath })
+            }
+            try {
+              if (Buffer.isBuffer(data)) { fs.writeFileSync(outPath, data); return resolve({ ok: true, path: outPath }) }
+              return resolve({ ok: true, path: outPath })
+            } catch (e) {
+              const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-write-${Date.now()}.log`)
+              try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+              return resolve({ error: String(e), log: logPath })
+            }
+          })
+        } catch (e) {
+          const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-throw-${Date.now()}.log`)
+          try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+          return resolve({ error: String(e), log: logPath })
+        }
+      })
+    }
+
+    return { error: 'unsupported-client-download', message: 'Client does not expose download or downloadStream methods.' }
+  } catch (e) {
+    const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-exception-${Date.now()}.log`)
+    try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ payload: payload }, null, 2)) } catch (er) {}
+    return { error: String(e), log: logPath, stack: e && e.stack ? String(e.stack) : undefined }
   }
 })

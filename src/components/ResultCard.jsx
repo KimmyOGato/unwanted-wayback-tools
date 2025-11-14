@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import Player from './Player'
+import Modal from './Modal'
 
 export default function ResultCard({ item, isSelected, onToggle, locale }) {
   const [showPreview, setShowPreview] = useState(false)
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgError, setImgError] = useState(false)
+  const [modalImgLoaded, setModalImgLoaded] = useState(false)
+  const [modalImgError, setModalImgError] = useState(false)
   const isImage = item.mimetype?.startsWith('image/')
   const isAudio = item.mimetype?.startsWith('audio/')
   const isVideo = item.mimetype?.startsWith('video/')
@@ -34,13 +39,24 @@ export default function ResultCard({ item, isSelected, onToggle, locale }) {
       />
 
       {isImage && (
-        <img
-          src={item.archived}
-          alt="thumbnail"
-          className="thumbnail"
-          loading="lazy"
-          onClick={() => setShowPreview(true)}
-        />
+        <>
+          {!imgLoaded && !imgError && (
+            <div className="thumbnail-placeholder" />
+          )}
+          {imgError && (
+            <div className="thumbnail-placeholder broken">Preview unavailable</div>
+          )}
+
+          <img
+            src={item.archived}
+            alt="thumbnail"
+            className="thumbnail"
+            loading="lazy"
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+            onClick={() => { if (!imgError) { setModalImgLoaded(false); setModalImgError(false); setShowPreview(true); } }}
+          />
+        </>
       )}
 
       {(isAudio || isVideo) && (
@@ -65,11 +81,23 @@ export default function ResultCard({ item, isSelected, onToggle, locale }) {
       </div>
 
       {showPreview && isImage && (
-        <div className="modal-overlay" onClick={() => setShowPreview(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <img src={item.archived} alt="full-size" style={{ maxWidth: '90vw', maxHeight: '90vh' }} />
+        <Modal onClose={() => setShowPreview(false)}>
+          <div style={{ minWidth: 200, minHeight: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {!modalImgLoaded && !modalImgError && (
+              <div className="modal-spinner">Loading…</div>
+            )}
+            {modalImgError && (
+              <div style={{ color: 'var(--muted)' }}>Failed to load image</div>
+            )}
+            <img
+              src={item.archived}
+              alt="full-size"
+              style={{ maxWidth: '90vw', maxHeight: '90vh', display: modalImgLoaded ? 'block' : 'none' }}
+              onLoad={() => setModalImgLoaded(true)}
+              onError={() => setModalImgError(true)}
+            />
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

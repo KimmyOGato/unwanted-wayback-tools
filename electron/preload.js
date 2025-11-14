@@ -29,6 +29,16 @@ const apiHandler = {
   }
 }
 
+// menu-open listener
+try {
+  apiHandler.onMenuOpen = (cb) => {
+    console.log('[Preload] onMenuOpen listener registered')
+    ipcRenderer.on('menu-open-mode', (e, mode) => cb(mode))
+  }
+} catch (e) {
+  console.error('[Preload] Failed to register onMenuOpen:', e)
+}
+
 // download-complete listener
 try {
   apiHandler.onDownloadComplete = (cb) => {
@@ -55,4 +65,29 @@ try {
   console.log('[Preload] Successfully exposed window.searchApi')
 } catch (err) {
   console.error('[Preload] Failed to expose window.searchApi:', err)
+}
+
+// Expose Soulseek API
+try {
+  contextBridge.exposeInMainWorld('soulseek', {
+    checkServer: (opts) => ipcRenderer.invoke('soulseek-check', opts),
+    hasClient: () => ipcRenderer.invoke('soulseek-has-client'),
+    search: (opts) => ipcRenderer.invoke('soulseek-search', opts),
+    download: (opts) => ipcRenderer.invoke('soulseek-download', opts)
+  })
+  console.log('[Preload] Exposed window.soulseek')
+} catch (err) {
+  console.error('[Preload] Failed to expose window.soulseek:', err)
+}
+
+// soulseek download progress listener
+try {
+  contextBridge.exposeInMainWorld('soulseekEvents', {
+    onDownloadProgress: (cb) => {
+      console.log('[Preload] soulseek onDownloadProgress listener registered')
+      ipcRenderer.on('soulseek-download-progress', (e, data) => cb(data))
+    }
+  })
+} catch (e) {
+  console.error('[Preload] Failed to expose soulseekEvents:', e)
 }

@@ -7,6 +7,7 @@ import Menu from './components/Menu'
 import WaybackSimpleSearch from './components/WaybackSimpleSearch'
 import Mp3Search from './components/Mp3Search'
 import LostMySpace from './components/LostMySpace'
+import SoulseekSearch from './components/SoulseekSearch'
 import './App.css'
 
 // Check if window.api is available (Electron preload injection)
@@ -126,6 +127,17 @@ export default function App() {
     }
   }, [])
 
+  // Listen for menu actions (open specific tabs)
+  useEffect(() => {
+    if (window.api && window.api.onMenuOpen) {
+      window.api.onMenuOpen((modeName) => {
+        try {
+          if (modeName) setMode(modeName)
+        } catch (e) { }
+      })
+    }
+  }, [])
+
   const handleSearch = async (link, type, filters) => {
     setLoading(true)
     setCurrentPage(1)
@@ -183,13 +195,21 @@ export default function App() {
       <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
       <main className="main-area">
       <header className="header">
-        <h1>{locale.title}</h1>
-        <p>{locale.subtitle}</p>
-        <div className="lang-selector">
-          <select value={lang} onChange={(e) => setLang(e.target.value)}>
-            <option value="pt-BR">Português (BR)</option>
-            <option value="en-US">English (US)</option>
-          </select>
+        <div className="header-inner">
+          <div className="brand">
+            <div className="brand-accent" />
+            <div className="brand-text">
+              <h1>{locale.title}</h1>
+              <p className="subtitle">{locale.subtitle}</p>
+            </div>
+          </div>
+
+          <div className="lang-selector">
+            <select value={lang} onChange={(e) => setLang(e.target.value)}>
+              <option value="pt-BR">Português (BR)</option>
+              <option value="en-US">English (US)</option>
+            </select>
+          </div>
         </div>
       </header>
 
@@ -203,6 +223,10 @@ export default function App() {
 
       {mode === 'lostmyspace' && (
         <LostMySpace />
+      )}
+
+      {mode === 'soulseek' && (
+        <SoulseekSearch />
       )}
 
       {mode === 'credits' && (

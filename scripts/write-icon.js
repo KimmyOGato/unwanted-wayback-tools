@@ -23,3 +23,23 @@ const b64 = fs.readFileSync(base64Path, 'utf8').trim();
 const buf = Buffer.from(b64, 'base64');
 fs.writeFileSync(outPng, buf);
 console.log('Wrote', outPng);
+
+// Validate PNG dimensions (simple IHDR parse) and warn if too small for Windows icon conversion
+try {
+	const png = fs.readFileSync(outPng);
+	if (png.length >= 24 && png.toString('ascii', 12, 16) === 'IHDR') {
+		const width = png.readUInt32BE(16);
+		const height = png.readUInt32BE(20);
+		console.log('Icon dimensions:', width + 'x' + height);
+		if (width < 256 || height < 256) {
+			console.error('\nERROR: Icon image is smaller than the recommended 256x256 for Windows icons.');
+			console.error('electron-builder/app-builder may fail to convert very small images (example: 1x1).');
+			console.error('Please replace', base64Path, 'or provide a proper PNG (>=256x256) at', outPng);
+			process.exit(2);
+		}
+	} else {
+		console.warn('Warning: could not detect IHDR chunk in', outPng, '- file may not be a valid PNG.');
+	}
+} catch (e) {
+	console.warn('Warning validating PNG dimensions:', e && e.message)
+}

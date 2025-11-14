@@ -33,6 +33,20 @@ const locales = {
     error: 'Erro',
     queued: 'Fila',
     cancel: 'Cancelar'
+    ,
+    // Soulseek / new UI strings
+    soulseek_host: 'Host',
+    soulseek_port: 'Porta',
+    soulseek_username: 'Usuário',
+    soulseek_password: 'Senha',
+    soulseek_search_placeholder: 'termo de busca',
+    soulseek_check: 'Verificar',
+    soulseek_search: 'Buscar',
+    soulseek_download: 'Baixar',
+    soulseek_debug: 'Debug',
+    cancelled: 'Cancelado',
+    download_destination_prompt: 'Selecione a pasta onde salvar o arquivo',
+    stream_timeout_error: 'Tempo de download excedido (stream).'
   },
   'en-US': {
     title: 'Unwanted Tools',
@@ -68,6 +82,20 @@ const locales = {
     error: 'Error',
     queued: 'Queued',
     cancel: 'Cancel'
+    ,
+    // Soulseek / new UI strings
+    soulseek_host: 'Host',
+    soulseek_port: 'Port',
+    soulseek_username: 'Username',
+    soulseek_password: 'Password',
+    soulseek_search_placeholder: 'search query',
+    soulseek_check: 'Check',
+    soulseek_search: 'Search',
+    soulseek_download: 'Download',
+    soulseek_debug: 'Debug',
+    cancelled: 'Cancelled',
+    download_destination_prompt: 'Select folder to save the file',
+    stream_timeout_error: 'Download timed out (stream).'
   }
 }
 
