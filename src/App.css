@@ -41,28 +41,7 @@
   gap: 12px;
 }
 
-/* Window control buttons (minimize / maximize / close) */
-.window-controls { display: inline-flex; gap: 6px; align-items: center; margin-right: 6px }
-.win-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 26px;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid rgba(255,255,255,0.03);
-  cursor: pointer;
-  font-size: 13px;
-}
-.win-btn:hover { background: rgba(255,255,255,0.03); transform: translateY(-1px) }
-.win-btn:active { transform: translateY(0) }
-.win-close { color: #ff6b6b; border-color: rgba(255,107,107,0.1) }
-
-@media (max-width: 800px) {
-  .window-controls { display: none }
-}
+/* Window controls removed: custom minimize/maximize/close buttons are hidden */
 
 .brand {
   display: flex;

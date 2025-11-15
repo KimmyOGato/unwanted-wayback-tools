@@ -1,6 +1,6 @@
 {
   "name": "unwanted-tools",
-  "version": "0.2.0",
+  "version": "0.3.0-beta",
   "description": "Unwanted Tools - find archived media across Wayback, MP3 Search and LostMySpace",
   "main": "electron/main.js",
   "scripts": {
@@ -56,7 +56,7 @@
         "provider": "github",
         "owner": "KimmyOGato",
         "repo": "unwanted-wayback-tools",
-        "releaseType": "release"
+        "releaseType": "prerelease"
       }
     ],
     "win": {

@@ -225,12 +225,6 @@ export default function App() {
               <div className="brand" />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div className="window-controls">
-                  <button className="win-btn win-min" onClick={() => window.api.window?.minimize()} title="Minimize">—</button>
-                  <button className="win-btn win-max" onClick={() => window.api.window?.toggleMaximize()} title={isMaximized ? 'Restore' : 'Maximize'}>{isMaximized ? '🗗' : '🗖'}</button>
-                  <button className="win-btn win-close" onClick={() => window.api.window?.close()} title="Close">×</button>
-                </div>
-
                 <HeaderSettings
                   lang={lang}
                   onLangChange={(l) => setLang(l)}

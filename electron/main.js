@@ -822,68 +822,12 @@ ipcMain.handle('soulseek-download', async (event, payload = {}) => {
 const isMac = process.platform === 'darwin'
 
 function buildAppMenu() {
-  const template = [
-    { label: 'File', submenu: [ { role: 'quit', label: 'Quit' } ] },
-    { label: 'Edit', submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
-      { type: 'separator' },
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      { role: 'pasteAndMatchStyle' },
-      { role: 'delete' },
-      { role: 'selectAll' }
-    ] },
-    { label: 'View', submenu: [
-      { role: 'reload', accelerator: 'CmdOrCtrl+R' },
-      { role: 'toggledevtools', label: 'Toggle DevTools', accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I' },
-      { type: 'separator' },
-      { role: 'togglefullscreen' }
-    ] },
-    { label: 'Navigate', submenu: [
-      { label: 'Wayback Search', click: () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('menu-open-mode', 'wayback') } catch (e) {} } },
-      { label: 'MP3 Search', click: () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('menu-open-mode', 'mp3') } catch (e) {} } },
-      { label: 'Soulseek', click: () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('menu-open-mode', 'soulseek') } catch (e) {} } },
-      { label: 'Downloads', click: () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('menu-open-mode', 'downloads') } catch (e) {} } },
-      { label: 'Credits', click: () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('menu-open-mode', 'credits') } catch (e) {} } }
-    ] },
-    { label: 'Window', role: 'window', submenu: [
-      { role: 'minimize' },
-      { role: 'zoom' },
-      { type: 'separator' },
-      ...(isMac ? [ { role: 'front' } ] : [ { role: 'close' } ])
-    ] },
-    { label: 'Help', submenu: [
-      { label: 'About', click: () => { dialog.showMessageBox({ type: 'info', title: 'About', message: 'Unwanted Tools', detail: 'Built with Electron + Vite' }) } }
-    ] }
-  ]
-
-  // Build and set a standard application menu so the native menu bar
-  // (File / View / Navigate / Help) is visible again. On macOS we
-  // prepend the app name menu for a native experience.
+  // Remove the application menu so the native menu options do not appear.
+  // This hides the native File/Edit/View/etc. menu bar on all platforms.
   try {
-    if (isMac) {
-      template.unshift({
-        label: app.name,
-        submenu: [
-          { role: 'about' },
-          { type: 'separator' },
-          { role: 'services' },
-          { type: 'separator' },
-          { role: 'hide' },
-          { role: 'hideothers' },
-          { role: 'unhide' },
-          { type: 'separator' },
-          { role: 'quit' }
-        ]
-      })
-    }
-
-    const menu = Menu.buildFromTemplate(template)
-    Menu.setApplicationMenu(menu)
+    Menu.setApplicationMenu(null)
   } catch (e) {
-    console.error('[Main] Failed to set application menu:', e)
+    console.error('[Main] Failed to remove application menu:', e)
   }
 }
 
