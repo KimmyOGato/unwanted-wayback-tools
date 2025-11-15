@@ -138,10 +138,12 @@ export default function Mp3Search() {
                   <div className="res-meta" title={it.url}>{display}</div>
                 </div>
                 <div className="res-right">
-                  <Player src={it.url} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Player src={it.url} />
+                  </div>
                   <div className="res-actions">
                     <button onClick={() => handleDownload(it)}>Download</button>
-                    <button onClick={() => window.api.openExternal(it.url)}>Site</button>
+                    <button className="site" onClick={() => window.api.openExternal(it.url)}>Site</button>
                   </div>
                 </div>
               </li>

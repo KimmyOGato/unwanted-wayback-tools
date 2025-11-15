@@ -96,12 +96,7 @@ export default function Player({ src, autoPlay = false }) {
       <button className="player-btn" onClick={toggle} disabled={error}>{error ? '✕' : (playing ? '⏸' : '▶')}</button>
       <div className="player-time">{error ? error : `${format(current)} / ${format(duration)}`}</div>
       <input className="player-seek" type="range" min={0} max={duration || 0} step={0.1} value={current} onChange={onSeek} disabled={error} />
-      {error && (
-        <div className="player-actions">
-          <button onClick={downloadAndPlay}>Download & Play</button>
-          <button onClick={() => { try { window.api.openExternal(src) } catch (_) { window.open(src, '_blank') } }}>Open in Browser</button>
-        </div>
-      )}
+      {/* Duplicate action buttons removed — Download / Open are available in item actions */}
     </div>
   )
 }
