@@ -55,7 +55,8 @@
       {
         "provider": "github",
         "owner": "KimmyOGato",
-        "repo": "unwanted-wayback-tools"
+        "repo": "unwanted-wayback-tools",
+        "releaseType": "release"
       }
     ],
     "win": {
