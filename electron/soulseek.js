@@ -82,3 +82,98 @@ module.exports = {
   createClient,
   hasClient: !!clientLib
 }
+
+// Does the installed client library support creating/registering accounts?
+function canRegister() {
+  if (!clientLib) return false
+  const candidates = ['register', 'createAccount', 'createUser', 'signup', 'registerUser']
+  for (const k of candidates) {
+    if (typeof clientLib[k] === 'function') return true
+  }
+  return false
+}
+
+// Try to register a user using one of the supported method names on the client library.
+// Returns object { ok: true } on success or { error: 'msg' } on failure.
+async function registerAccount(opts = {}) {
+  if (!clientLib) return { error: 'missing-soulseek-lib' }
+  const username = opts.username || opts.user
+  const password = opts.password || opts.pass
+  if (!username || !password) return { error: 'username_password_required' }
+
+  const tryNames = ['register', 'createAccount', 'createUser', 'signup', 'registerUser']
+  for (const name of tryNames) {
+    const fn = clientLib[name]
+    if (typeof fn === 'function') {
+      try {
+        // Attempt to call; support sync/async and nodeback (err, res)
+        const res = await new Promise((resolve, reject) => {
+          try {
+            const rv = fn.call(clientLib, { user: username, pass: password, username, password }, (err, data) => {
+              if (err) return reject(err)
+              resolve(data || { ok: true })
+            })
+            // If function returns a promise
+            if (rv && typeof rv.then === 'function') {
+              rv.then(d => resolve(d)).catch(reject)
+            }
+            // Some functions may return synchronously
+            if (rv === undefined) {
+              // rely on callback
+            } else if (rv && typeof rv === 'object' && rv.ok) {
+              resolve(rv)
+            }
+          } catch (e) {
+            reject(e)
+          }
+        })
+        return { ok: true, result: res }
+      } catch (e) {
+        return { error: String(e) }
+      }
+    }
+  }
+  return { error: 'registration_not_supported' }
+}
+
+module.exports.canRegister = canRegister
+module.exports.registerAccount = registerAccount
+
+// Check whether a username appears available using client library helpers if present.
+async function checkUsernameAvailable(opts = {}) {
+  if (!clientLib) return { error: 'missing-soulseek-lib' }
+  const username = opts.username || opts.user
+  if (!username) return { error: 'username_required' }
+
+  const tryNames = ['checkUsername', 'usernameAvailable', 'available', 'isAvailable', 'check']
+  for (const name of tryNames) {
+    const fn = clientLib[name]
+    if (typeof fn === 'function') {
+      try {
+        const res = await new Promise((resolve, reject) => {
+          try {
+            const rv = fn.call(clientLib, username, (err, data) => {
+              if (err) return reject(err)
+              resolve(data)
+            })
+            if (rv && typeof rv.then === 'function') {
+              rv.then(d => resolve(d)).catch(reject)
+            }
+            if (rv !== undefined) {
+              resolve(rv)
+            }
+          } catch (e) { reject(e) }
+        })
+        // Interpret common truthy/falsey responses
+        if (typeof res === 'boolean') return { ok: true, available: !!res }
+        if (res && typeof res.available !== 'undefined') return { ok: true, available: !!res.available }
+        return { ok: true, result: res }
+      } catch (e) {
+        return { error: String(e) }
+      }
+    }
+  }
+  return { error: 'check_not_supported' }
+}
+
+module.exports.checkUsernameAvailable = checkUsernameAvailable

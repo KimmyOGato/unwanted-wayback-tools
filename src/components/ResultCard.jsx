@@ -22,7 +22,7 @@ export default function ResultCard({ item, isSelected, onToggle, locale }) {
       if (!folder) return
       const filename = `${item.timestamp || Date.now()}_${item.original.split('/').pop()}`
       const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
-      window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: item.archived, folder, filename } }))
+      window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: item.archived, folder, filename, groupTitle: item.groupTitle, groupYear: item.groupYear } }))
       alert('Download queued (check status)')
     } catch (e) {
       alert('Download failed: ' + String(e))

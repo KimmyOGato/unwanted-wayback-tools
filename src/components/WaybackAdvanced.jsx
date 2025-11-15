@@ -31,7 +31,7 @@ export default function WaybackAdvanced() {
     if (!folder) return
     const filename = `${item.timestamp || ''}_${item.original.split('/').pop()}`
     const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
-    window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: item.archived, folder, filename } }))
+    window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: item.archived, folder, filename, groupTitle: item.groupTitle, groupYear: item.groupYear } }))
     alert('Download queued (check status).')
   }
 
@@ -43,7 +43,7 @@ export default function WaybackAdvanced() {
     for (const it of toDownload) {
       const filename = `${it.timestamp || ''}_${it.original.split('/').pop()}`
       const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
-      window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: it.archived, folder, filename } }))
+        window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: it.archived, folder, filename, groupTitle: it.groupTitle, groupYear: it.groupYear } }))
     }
     alert('Downloads requested for ' + toDownload.length + ' items')
   }

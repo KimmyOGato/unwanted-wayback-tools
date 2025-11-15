@@ -6,8 +6,10 @@ import DownloadStatus from './components/DownloadStatus'
 import Menu from './components/Menu'
 import WaybackSimpleSearch from './components/WaybackSimpleSearch'
 import Mp3Search from './components/Mp3Search'
-import LostMySpace from './components/LostMySpace'
 import SoulseekSearch from './components/SoulseekSearch'
+import UpdaterPrompt from './components/UpdaterPrompt'
+import ThemeSelector from './components/ThemeSelector'
+import HeaderSettings from './components/HeaderSettings'
 import './App.css'
 
 // Check if window.api is available (Electron preload injection)
@@ -27,7 +29,13 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [mode, setMode] = useState('wayback')
-  const [theme, setTheme] = useState('dark')
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('uwt:theme') || 'preto'
+    } catch (e) {
+      return 'preto'
+    }
+  })
   const downloadWorkerRef = useRef(null)
 
   const locale = useLocale(lang)
@@ -54,7 +62,9 @@ export default function App() {
         const res = await window.api.downloadResource({
           url: item.archived,
           destFolder: item.folder,
-          filename: item.filename
+          filename: item.filename,
+          groupTitle: item.groupTitle,
+          groupYear: item.groupYear
         })
 
         if (res.error) {
@@ -209,35 +219,36 @@ export default function App() {
       <div className="content-area">
         <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
         <main className="main-area">
+          <UpdaterPrompt />
           <header className="header">
             <div className="header-inner">
-              <div className="brand">
-                <div className="brand-accent" />
-                <div className="brand-text">
-                  <h1>{locale.title}</h1>
-                  <p className="subtitle">{locale.subtitle}</p>
-                </div>
-              </div>
+              <div className="brand" />
 
-              <div className="lang-selector">
-                <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                  <option value="pt-BR">Português (BR)</option>
-                  <option value="en-US">English (US)</option>
-                </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="window-controls">
+                  <button className="win-btn win-min" onClick={() => window.api.window?.minimize()} title="Minimize">—</button>
+                  <button className="win-btn win-max" onClick={() => window.api.window?.toggleMaximize()} title={isMaximized ? 'Restore' : 'Maximize'}>{isMaximized ? '🗗' : '🗖'}</button>
+                  <button className="win-btn win-close" onClick={() => window.api.window?.close()} title="Close">×</button>
+                </div>
+
+                <HeaderSettings
+                  lang={lang}
+                  onLangChange={(l) => setLang(l)}
+                  theme={theme}
+                  onThemeChange={(t) => { setTheme(t); try { localStorage.setItem('uwt:theme', t) } catch (e) {} }}
+                />
               </div>
             </div>
           </header>
 
           {mode === 'wayback' && <WaybackSimpleSearch />}
           {mode === 'mp3' && <Mp3Search />}
-          {mode === 'lostmyspace' && <LostMySpace />}
           {mode === 'soulseek' && <SoulseekSearch />}
 
           {mode === 'credits' && (
             <div className="credits">
               <h3>Credits</h3>
               <ul>
-                <li><a href="https://github.com/KimmyOGato" target="_blank" rel="noreferrer">KimmyOGato</a></li>
                 <li><a href="https://github.com/Oyukihiro/Unwanted" target="_blank" rel="noreferrer">Oyukihiro / Unwanted</a></li>
               </ul>
             </div>

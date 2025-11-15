@@ -32,8 +32,7 @@ export default function SoulseekSearch() {
   const [status, setStatus] = useState('')
   const [results, setResults] = useState([])
   const [itemStatus, setItemStatus] = useState({})
-  const [debugIndex, setDebugIndex] = useState(null)
-  const [debugPayload, setDebugPayload] = useState(null)
+  // debug helpers removed for production
 
   // listen for download progress from main
   React.useEffect(() => {
@@ -50,21 +49,24 @@ export default function SoulseekSearch() {
 
   // Load saved Soulseek credentials from localStorage on mount
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem('soulseekCreds')
-      if (raw) {
-        const obj = JSON.parse(raw)
-        if (obj) {
-          if (obj.host) setHost(obj.host)
-          if (obj.port) setPort(obj.port)
-          if (obj.username) setUsername(obj.username)
-          if (obj.password) setPassword(obj.password)
+    ;(async () => {
+      try {
+        if (window.soulseek && window.soulseek.getCreds) {
+          const res = await window.soulseek.getCreds()
+          if (res && res.ok && res.creds) {
+            const obj = res.creds
+            if (obj.host) setHost(obj.host)
+            if (obj.port) setPort(obj.port)
+            if (obj.username) setUsername(obj.username)
+            if (obj.password) setPassword(obj.password)
+          }
         }
+      } catch (e) {
+        console.warn('[Soulseek] failed to load saved creds', e)
+      } finally {
+        setCredsLoaded(true)
       }
-    } catch (e) {
-      console.warn('[Soulseek] failed to load saved creds', e)
-    }
-    setCredsLoaded(true)
+    })()
   }, [])
 
   // Persist credentials automatically when they change
@@ -72,8 +74,14 @@ export default function SoulseekSearch() {
     // wait until initial load to avoid overwriting
     if (!credsLoaded) return
     try {
-      const obj = { host, port, username, password }
-      localStorage.setItem('soulseekCreds', JSON.stringify(obj))
+      if (window.soulseek && window.soulseek.storeCreds) {
+        const obj = { host, port, username, password }
+        try {
+          window.soulseek.storeCreds(obj).catch?.(() => {})
+        } catch (e) {
+          // ignore
+        }
+      }
     } catch (e) {
       console.warn('[Soulseek] failed to save creds', e)
     }
@@ -85,6 +93,11 @@ export default function SoulseekSearch() {
     if (res && res.ok) setStatus('Server reachable')
     else setStatus('Server not reachable: ' + (res && res.error ? res.error : 'unknown'))
   }
+
+  // Guess plausible registration URLs for the given host
+  // Username checking and automatic registration helpers removed — unreliable across environments.
+
+  // Account creation option removed — not supported reliably by clients.
 
   const doSearch = async () => {
     setStatus('Searching...')
@@ -149,6 +162,7 @@ export default function SoulseekSearch() {
         <div className="soulseek-creds">
           <input className="ss-input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
           <input className="ss-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" type="password" />
+          {/* Username check removed */}
         </div>
         <div className="soulseek-searchbar">
           <input className="ss-input ss-query" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search query" />
@@ -194,7 +208,6 @@ export default function SoulseekSearch() {
                     })()}
 
                     <button className="btn" onClick={() => startDownload(r, i)} disabled={!(r.available || r.open || (typeof r.slots !== 'undefined' && !!r.slots))}>Download</button>
-                    <button className="btn btn-ghost" onClick={() => { setDebugIndex(i); setDebugPayload(r) }}>Debug</button>
                     <div className="item-status">{itemStatus[i] ? itemStatus[i].status : ''}{itemStatus[i] && itemStatus[i].message ? ` — ${itemStatus[i].message}` : ''}</div>
                   </div>
                 </td>
@@ -204,7 +217,7 @@ export default function SoulseekSearch() {
         </table>
       </div>
 
-      <DebugModal open={debugIndex !== null} payload={debugPayload} onClose={() => { setDebugIndex(null); setDebugPayload(null) }} />
+      {/* Debug modal removed in production build */}
     </div>
   )
 }

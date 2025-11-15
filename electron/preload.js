@@ -81,11 +81,13 @@ try {
   contextBridge.exposeInMainWorld('updater', {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     downloadUpdate: () => ipcRenderer.invoke('download-update'),
+    cancelDownload: () => ipcRenderer.invoke('cancel-update-download'),
     installUpdate: () => ipcRenderer.invoke('install-update'),
     onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (e, info) => cb(info)),
     onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', (e, info) => cb(info)),
     onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (e, info) => cb(info)),
-    onUpdateError: (cb) => ipcRenderer.on('update-error', (e, err) => cb(err))
+    onUpdateError: (cb) => ipcRenderer.on('update-error', (e, err) => cb(err)),
+    onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (e, data) => cb(data))
   })
   console.log('[Preload] Exposed updater API')
 } catch (e) {
@@ -95,8 +97,7 @@ try {
 // expose additional search APIs
 try {
   contextBridge.exposeInMainWorld('searchApi', {
-    searchMp3: (opts) => ipcRenderer.invoke('search-mp3', opts),
-    searchLostMySpace: (opts) => ipcRenderer.invoke('search-lostmyspace', opts)
+    searchMp3: (opts) => ipcRenderer.invoke('search-mp3', opts)
   })
   console.log('[Preload] Successfully exposed window.searchApi')
 } catch (err) {
@@ -110,6 +111,16 @@ try {
     hasClient: () => ipcRenderer.invoke('soulseek-has-client'),
     search: (opts) => ipcRenderer.invoke('soulseek-search', opts),
     download: (opts) => ipcRenderer.invoke('soulseek-download', opts)
+    ,
+    // secure credential storage (uses OS keychain via main process)
+    storeCreds: (creds) => ipcRenderer.invoke('soulseek-store-creds', creds),
+    getCreds: () => ipcRenderer.invoke('soulseek-get-creds'),
+    deleteCreds: () => ipcRenderer.invoke('soulseek-delete-creds')
+    ,
+    // account registration helpers
+    canRegister: () => ipcRenderer.invoke('soulseek-can-register'),
+    createAccount: (opts) => ipcRenderer.invoke('soulseek-create-account', opts),
+    checkUsername: (opts) => ipcRenderer.invoke('soulseek-check-username', opts)
   })
   console.log('[Preload] Exposed window.soulseek')
 } catch (err) {

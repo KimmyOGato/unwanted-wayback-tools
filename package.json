@@ -1,6 +1,6 @@
 {
   "name": "unwanted-tools",
-  "version": "1.0.0-beta.1",
+  "version": "0.2.0",
   "description": "Unwanted Tools - find archived media across Wayback, MP3 Search and LostMySpace",
   "main": "electron/main.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "start": "electron .",
     "start:prod": "electron .",
     "dist": "npm run build && npm run generate-icon && electron-builder --win --x64",
+    "release": "npm run build && npm run generate-icon && electron-builder --win --x64 --publish=always",
     "write-icon": "node scripts/write-icon.js",
     "generate-icon": "npm run write-icon && png-to-ico build/icon.png > build/icon.ico",
     "prepare-build": "npm run generate-icon"
@@ -22,9 +23,12 @@
     "cheerio": "^1.0.0-rc.12",
     "electron-updater": "^5.0.0",
     "node-fetch": "^2.6.7",
+    "puppeteer": "^24.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "slsk-client": "^1.1.0"
+    ,
+    "keytar": "^7.7.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",

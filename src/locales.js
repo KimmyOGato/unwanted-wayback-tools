@@ -1,7 +1,7 @@
 const locales = {
   'pt-BR': {
     title: 'Unwanted Tools',
-    subtitle: 'Pesquise conteúdo arquivado: Wayback, MP3 Search e LostMySpace.',
+    subtitle: 'Pesquise conteúdo arquivado: Wayback e MP3 Search.',
     placeholder: 'https://web.archive.org/web/*/http://example.com',
     type_images: 'Imagens',
     type_media: 'Áudio & Vídeo',
@@ -26,7 +26,6 @@ const locales = {
     prev: 'Anterior',
     preview: 'Pré-visualizar',
     mp3_search: 'Buscar MP3',
-    lostmyspace_search: 'Buscar LostMySpace',
     status: 'Status',
     downloading: 'Baixando...',
     completed: 'Concluído',
@@ -50,7 +49,7 @@ const locales = {
   },
   'en-US': {
     title: 'Unwanted Tools',
-    subtitle: 'Search archived content: Wayback, MP3 Search and LostMySpace.',
+    subtitle: 'Search archived content: Wayback and MP3 Search.',
     placeholder: 'https://web.archive.org/web/*/http://example.com',
     type_images: 'Images',
     type_media: 'Audio & Video',
@@ -75,7 +74,6 @@ const locales = {
     prev: 'Previous',
     preview: 'Preview',
     mp3_search: 'MP3 Search',
-    lostmyspace_search: 'LostMySpace Search',
     status: 'Status',
     downloading: 'Downloading...',
     completed: 'Completed',

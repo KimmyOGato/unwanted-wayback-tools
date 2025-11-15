@@ -60,6 +60,22 @@ export default function Player({ src, autoPlay = false }) {
     })
   }
 
+  const downloadAndPlay = async () => {
+    try {
+      const folder = await window.api.selectFolder()
+      if (!folder) return
+      const url = src || ''
+      const filename = `${Date.now()}_${url.split('/').pop()}`
+      const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
+      window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: url, folder, filename, playAfter: true } }))
+      // give user quick feedback
+      alert('Download queued and will play when complete')
+    } catch (e) {
+      console.error('[Player] downloadAndPlay error:', e)
+      alert('Failed to queue download: ' + String(e))
+    }
+  }
+
   const format = (t) => {
     if (!isFinite(t) || t <= 0) return '0:00'
     const s = Math.floor(t % 60).toString().padStart(2, '0')
@@ -80,6 +96,12 @@ export default function Player({ src, autoPlay = false }) {
       <button className="player-btn" onClick={toggle} disabled={error}>{error ? '✕' : (playing ? '⏸' : '▶')}</button>
       <div className="player-time">{error ? error : `${format(current)} / ${format(duration)}`}</div>
       <input className="player-seek" type="range" min={0} max={duration || 0} step={0.1} value={current} onChange={onSeek} disabled={error} />
+      {error && (
+        <div className="player-actions">
+          <button onClick={downloadAndPlay}>Download & Play</button>
+          <button onClick={() => { try { window.api.openExternal(src) } catch (_) { window.open(src, '_blank') } }}>Open in Browser</button>
+        </div>
+      )}
     </div>
   )
 }

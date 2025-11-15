@@ -13,12 +13,12 @@
 
 
 .header {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   position: relative;
-  padding: 14px 20px;
-  background: var(--card);
-  border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(2,6,23,0.12);
+  padding: 8px 12px;
+  background: transparent;
+  border-radius: 6px;
+  box-shadow: none;
 }
 
 .header h1 {
@@ -41,6 +41,29 @@
   gap: 12px;
 }
 
+/* Window control buttons (minimize / maximize / close) */
+.window-controls { display: inline-flex; gap: 6px; align-items: center; margin-right: 6px }
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.03);
+  cursor: pointer;
+  font-size: 13px;
+}
+.win-btn:hover { background: rgba(255,255,255,0.03); transform: translateY(-1px) }
+.win-btn:active { transform: translateY(0) }
+.win-close { color: #ff6b6b; border-color: rgba(255,107,107,0.1) }
+
+@media (max-width: 800px) {
+  .window-controls { display: none }
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -48,11 +71,10 @@
 }
 
 .brand-accent {
-  width: 8px;
-  height: 48px;
-  border-radius: 4px;
+  width: 6px;
+  height: 36px;
+  border-radius: 3px;
   background: linear-gradient(180deg, var(--accent), #3b82f6);
-  box-shadow: 0 4px 10px rgba(59,130,246,0.12);
 }
 
 /* removed brand-logo styles (logo removed) */
@@ -113,11 +135,11 @@
 
 /* Light theme adjustments: reduce heavy shadows and large rounded boxes */
 .app.light .header {
-  background: var(--card);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(2,6,23,0.06);
-  padding: 10px 14px;
-  margin-bottom: 10px;
+  background: transparent;
+  border-radius: 4px;
+  box-shadow: none;
+  padding: 8px 10px;
+  margin-bottom: 8px;
 }
 
 .app.light .header-inner .brand-accent {
@@ -398,6 +420,105 @@
   font-size: 13px;
   border: 1px dashed rgba(255,255,255,0.03);
 }
+
+/* Theme system: nice-looking dark palettes */
+.app {
+  --bg: #07070a;
+  --card: rgba(20,20,24,0.6);
+  --accent: #7c3aed;
+  --muted: #94a3b8;
+  --text: #eef2ff;
+}
+
+.theme-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.03);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.theme-btn .swatch { width: 18px; height: 14px; border-radius: 4px; display:inline-block; box-shadow: inset 0 -2px 4px rgba(0,0,0,0.35) }
+.theme-btn .lbl { display:none }
+.theme-btn.active { box-shadow: 0 6px 14px rgba(0,0,0,0.45); transform: translateY(-1px); border-color: rgba(255,255,255,0.06) }
+
+/* show label on hover (keeps header compact) */
+.theme-btn:hover .lbl { display:inline-block }
+
+/* swatch colors */
+.theme-btn .swatch.preto-total { background: linear-gradient(90deg,#000,#050505) }
+.theme-btn .swatch.preto { background: linear-gradient(90deg,#0b0b0f,#121217) }
+.theme-btn .swatch.roxo-escuro { background: linear-gradient(90deg,#2a164d,#4c1d95) }
+.theme-btn .swatch.vermelho-escuro { background: linear-gradient(90deg,#3a0b0b,#7b1111) }
+
+/* Theme variables overrides */
+.app.preto-total {
+  --bg: #000000;
+  --card: #000000;
+  --accent: #6ee7b7;
+  --muted: #9ca3af;
+  --text: #f8fafc;
+}
+.app.preto {
+  --bg: linear-gradient(180deg,#050507,#0b0b0f);
+  --card: rgba(12,12,14,0.6);
+  --accent: #60a5fa;
+  --muted: #9aa4b2;
+  --text: #eef2ff;
+}
+.app.roxo-escuro {
+  --bg: linear-gradient(180deg,#08020b,#12021a);
+  --card: rgba(18,8,28,0.55);
+  --accent: #8b5cf6;
+  --muted: #b7aed8;
+  --text: #f5f3ff;
+}
+.app.vermelho-escuro {
+  --bg: linear-gradient(180deg,#120606,#2a0a0a);
+  --card: rgba(32,10,10,0.6);
+  --accent: #ef4444;
+  --muted: #f3c7c7;
+  --text: #fff5f5;
+}
+
+/* Slight adjustments for compact header when using theme selector */
+.header-inner { align-items: center }
+.lang-selector select { min-width: 160px }
+
+/* Header settings dropdown */
+.header-settings { position: relative }
+.settings-btn {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.04);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.settings-panel {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  width: 320px;
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 10px 30px rgba(2,6,23,0.5);
+  z-index: 60;
+}
+.settings-row { display:flex; align-items:center; gap:8px; justify-content:space-between }
+
+
 .thumbnail-placeholder.broken {
   opacity: 0.7;
 }
@@ -439,6 +560,27 @@
   justify-content: center;
   z-index: 1000;
 }
+
+.modal-content { background: var(--card); padding: 20px; border-radius: 8px; width: 420px; max-width: calc(100% - 40px); box-shadow: 0 10px 30px rgba(2,6,23,0.4) }
+.modal-content h3 { margin: 0 0 8px 0 }
+.modal-content p { margin: 0 0 12px 0; color: var(--muted) }
+
+/* Glassmorphic cards and background */
+.app { background: linear-gradient(180deg,#07070a 0%, #0b0b0f 50%, #060608 100%), url('') no-repeat center/cover; }
+.main-area { padding: 28px; }
+.header { background: rgba(255,255,255,0.02); backdrop-filter: blur(8px) saturate(120%); border: 1px solid rgba(255,255,255,0.04); }
+.brand-accent { background: linear-gradient(180deg,var(--accent),#3b82f6); box-shadow: 0 8px 30px rgba(96,165,250,0.06); }
+.side-menu { background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.02); backdrop-filter: blur(6px); }
+.result-card, .download-status, .queue-item { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.04); backdrop-filter: blur(6px) }
+.mp3-item { background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.03); box-shadow: 0 6px 18px rgba(2,6,23,0.45) }
+.soulseek-search .soulseek-table tbody tr:hover { background: rgba(255,255,255,0.01); transform: translateY(-2px); transition: transform 0.15s ease, background 0.15s }
+
+/* Progress bar enhancements */
+.progress-bar { background: rgba(255,255,255,0.04); border-radius: 8px; overflow: hidden }
+.progress-fill { height: 100%; transition: width 0.3s ease }
+
+/* Subtle floating button */
+.btn { box-shadow: 0 6px 18px rgba(2,6,23,0.4) }
 
 .modal-content {
   background: var(--card);
@@ -635,9 +777,15 @@
   cursor: pointer;
   font-weight: 600;
 }
+/* Make Wayback search button match `.btn` appearance (rounded, border) */
+.search-controls .btn {
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 10px 16px;
+}
 
 .filter-section {
-  margin-top: -10px;
+  margin-top: 0;
 }
 
 .filter-section details {
@@ -645,18 +793,20 @@
 }
 
 .filter-section summary {
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.01);
+  padding: 6px 8px;
+  background: transparent;
   border-radius: 6px;
   user-select: none;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .date-filters {
   display: flex;
   gap: 12px;
-  margin-top: 12px;
-  padding: 12px;
-  background: rgba(255,255,255,0.01);
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255,255,255,0.02);
   border-radius: 6px;
 }
 
@@ -667,6 +817,34 @@
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.02);
   color: var(--text);
+}
+
+/* Compact capture control used in Wayback search */
+.capture-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.capture-control label {
+  color: var(--muted);
+  margin: 0;
+  font-size: 13px;
+}
+
+.capture-control select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
 }
 
 .results-section {
