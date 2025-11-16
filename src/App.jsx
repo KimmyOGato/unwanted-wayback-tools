@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocale, formatMessage } from './locales'
 import SearchForm from './components/SearchForm'
 import ResultsGrid from './components/ResultsGrid'
-import DownloadStatus from './components/DownloadStatus'
+import Navigation from './components/Navigation'
+import DownloadStatusBar from './components/DownloadStatusBar'
 import Menu from './components/Menu'
 import WaybackSimpleSearch from './components/WaybackSimpleSearch'
 import Mp3Search from './components/Mp3Search'
@@ -240,26 +241,14 @@ export default function App() {
   const paginatedItems = items.slice((currentPage - 1) * 20, currentPage * 20)
   return (
     <div className={`app ${theme}`}>
-      <div className="content-area">
-        <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} locale={locale} />
-        <main className="main-area">
-          <UpdaterPrompt locale={locale} />
-          <header className="header">
-            <div className="header-inner">
-              <div className="brand" />
+      <Navigation mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} locale={locale} />
+      <DownloadStatusBar downloads={downloadStatus} locale={locale} />
+      <main className="main-content">
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <HeaderSettings
-                  lang={lang}
-                  onLangChange={(l) => setLang(l)}
-                  theme={theme}
-                  onThemeChange={(t) => { setTheme(t); try { localStorage.setItem('uwt:theme', t) } catch (e) {} }}
-                  locale={locale}
-                />
-              </div>
-            </div>
-          </header>
 
+        <UpdaterPrompt locale={locale} />
+
+        <div className="content-container">
           {mode === 'wayback' && <WaybackSimpleSearch locale={locale} />}
           {mode === 'mp3' && <Mp3Search locale={locale} />}
           {mode === 'soulseek' && <SoulseekSearch locale={locale} />}
@@ -274,8 +263,8 @@ export default function App() {
               </ul>
             </div>
           )}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   )
 }
