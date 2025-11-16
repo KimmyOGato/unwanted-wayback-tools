@@ -45,7 +45,7 @@ export default function Navigation({ mode, onSelect, theme, onToggleTheme, local
             onClick={onToggleTheme}
             title="Toggle theme"
           >
-            {theme === 'preto' ? '☀️' : '🌙'}
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           
           {/* Mobile Menu Toggle */}
