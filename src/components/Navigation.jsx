@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 export default function Navigation({ mode, onSelect, theme, onToggleTheme, locale = {} }) {
   const t = locale || {}
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
 
   const menuItems = [
     { id: 'wayback', label: t.menu_wayback || 'Wayback', icon: '🕰️' },
@@ -12,6 +13,22 @@ export default function Navigation({ mode, onSelect, theme, onToggleTheme, local
     { id: 'statistics', label: t.statistics || 'Stats', icon: '📊' },
     { id: 'credits', label: t.menu_credits || 'Credits', icon: '✨' }
   ]
+
+  const themes = [
+    { id: 'preto-total', label: 'Preto Total' },
+    { id: 'preto', label: 'Preto' },
+    { id: 'roxo-escuro', label: 'Roxo' },
+    { id: 'vermelho-escuro', label: 'Vermelho' },
+    { id: 'rosa', label: 'Rosa' },
+    { id: 'azul', label: 'Azul' },
+    { id: 'verde', label: 'Verde' },
+    { id: 'light', label: 'Light' }
+  ]
+
+  const changeTheme = (newTheme) => {
+    onToggleTheme(newTheme)
+    setThemeMenuOpen(false)
+  }
 
   return (
     <nav className={`navbar ${theme}`}>
@@ -40,13 +57,30 @@ export default function Navigation({ mode, onSelect, theme, onToggleTheme, local
 
         {/* Right Section */}
         <div className="navbar-right">
-          <button
-            className="btn-theme"
-            onClick={onToggleTheme}
-            title="Toggle theme"
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
+          {/* Theme Selector Dropdown */}
+          <div className="theme-dropdown">
+            <button
+              className="btn-theme"
+              onClick={() => setThemeMenuOpen(!themeMenuOpen)}
+              title="Select theme"
+            >
+              🎨
+            </button>
+            {themeMenuOpen && (
+              <div className="theme-dropdown-menu">
+                {themes.map(t => (
+                  <button
+                    key={t.id}
+                    className={`theme-option ${theme === t.id ? 'active' : ''}`}
+                    onClick={() => changeTheme(t.id)}
+                  >
+                    <span className={`theme-dot ${t.id}`}></span>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           
           {/* Mobile Menu Toggle */}
           <button

@@ -222,7 +222,13 @@ export default function App() {
 
   const handleModeSelect = (m) => setMode(m)
 
-  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+  const toggleTheme = (newTheme) => {
+    if (newTheme) {
+      setTheme(newTheme)
+    } else {
+      setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+    }
+  }
 
   const handleDownload = async (indices) => {
     const folder = await window.api.selectFolder()
