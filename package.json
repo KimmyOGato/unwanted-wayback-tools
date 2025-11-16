@@ -1,6 +1,6 @@
 {
   "name": "unwanted-tools",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Unwanted Tools - find archived media across Wayback, MP3 Search and LostMySpace",
   "main": "electron/main.js",
   "scripts": {
