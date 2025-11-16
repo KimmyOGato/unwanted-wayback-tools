@@ -92,7 +92,7 @@
       "perMachine": false,
       "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "unwanted-tools-${version}.${ext}"
     }
   }
 }
