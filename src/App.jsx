@@ -36,9 +36,10 @@ export default function App() {
   const [mode, setMode] = useState('wayback')
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem('uwt:theme') || 'preto'
+      const saved = localStorage.getItem('uwt:theme')
+      return saved || 'dark'
     } catch (e) {
-      return 'preto'
+      return 'dark'
     }
   })
   const downloadWorkerRef = useRef(null)
@@ -48,6 +49,10 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('uwt:lang', lang) } catch (e) {}
   }, [lang])
+
+  useEffect(() => {
+    try { localStorage.setItem('uwt:theme', theme) } catch (e) {}
+  }, [theme])
 
   // Initialize download manager
   useEffect(() => {
