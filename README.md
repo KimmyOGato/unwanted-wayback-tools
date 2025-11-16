@@ -1,33 +1,28 @@
-# Wayback Media Saver v0.2.0
+# Unwanted Tools v0.3.2
 
-Uma aplicação desktop elegante para buscar e salvar imagens, áudio, vídeo e documentos arquivados no Wayback Machine.
+Uma aplicação desktop elegante para buscar, baixar e gerenciar conteúdo arquivado de várias fontes.
 
-## Características
+## ✨ O que é Novo em 0.3.2
 
-### Busca Avançada
-- Buscar recursos arquivados (imagens, áudio, vídeo, documentos) a partir de links do Wayback Machine ou URLs originais
-- Filtrar por tipo de conteúdo (imagens, áudio & vídeo, documentos, todos)
-- Filtrar por período de datas (data inicial e final)
+- 🔄 **Auto-Update System** - App verifica por atualizações automaticamente
+- 🎬 **Melhorado Video Downloader** - yt-dlp agora integrado, sem instalação externa
+- 📋 **Suporte a Playlists** - Baixe apenas um vídeo ou a playlist inteira
+- 💾 **Preservação de Dados** - Suas configurações e histórico são preservados nas atualizações
+- 🎨 **Interface Redesenhada** - Novo design moderno com gradientes e animações
+
+## Características Principais
+
+### 🕰️ Wayback Machine Search
+- Buscar recursos arquivados (imagens, áudio, vídeo, documentos)
+- Filtrar por tipo de conteúdo
+- Filtrar por período de datas
 - Paginação automática (20 itens por página)
+- Download paralelo até 3 simultâneos
 
-### Download Inteligente
-- **Downloads paralelos**: Até 3 downloads simultâneos para máxima eficiência
-- **Preservação de extensões**: Mantém extensões originais ou infere do Content-Type
-- **Nomes seguros**: Remove caracteres proibidos dos nomes de arquivo
-- **Status em tempo real**: Acompanhe cada download com barra de progresso
-- **Fila de downloads**: Visualize o status de todos os downloads
-
-### Prévia de Conteúdo
-- **Imagens**: Miniaturas com clique para visualização em tela cheia
-- **Áudio**: Player HTML5 embutido
-- **Vídeo**: Reprodutor HTML5 embutido
-
-### Multilíngue
-- Português (Brasil) 🇧🇷
-- English (US) 🇺🇸
-- Seletor de idioma na interface
-
-### Interface Moderna
+### 🎵 MP3 Search
+- Buscar e baixar músicas
+- Suporte a múltiplas fontes
+- Previsão de qualidade
 - Design limpo com tema escuro
 - Suporte a dispositivos móveis e responsivo
 - Gradientes e animações suaves

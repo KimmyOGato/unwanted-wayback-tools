@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, Menu, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -31,6 +31,26 @@ if (typeof global.File === 'undefined') {
 const fetch = require('node-fetch')
 const cheerio = require('cheerio')
 const soulseek = require('./soulseek')
+let ytdl
+try { ytdl = require('ytdl-core') } catch (e) { ytdl = null }
+
+// Helper to locate bundled ffmpeg binary (packaged by ffmpeg-static)
+function getFFmpegPath() {
+  try {
+    const ffmpegStatic = require('ffmpeg-static')
+    if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return ffmpegStatic
+  } catch (e) {}
+  // fallback: try common paths
+  const candidates = [
+    path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+    'ffmpeg'
+  ]
+  for (const c of candidates) {
+    try { if (fs.existsSync(c)) return c } catch (e) {}
+  }
+  return 'ffmpeg'
+}
+
 let keytar
 try {
   keytar = require('keytar')
@@ -650,6 +670,7 @@ ipcMain.handle('soulseek-search', async (event, { host, port, username, password
 })
 
 ipcMain.handle('soulseek-download', async (event, payload = {}) => {
+  console.log('[Main][soulseek-download] received payload:', JSON.stringify(payload).substring(0, 200))
   const { fileId, file, peer, destination, creds } = payload || {}
   if (!soulseek.hasClient) return { error: 'missing-soulseek-lib' }
   try {
@@ -665,13 +686,17 @@ ipcMain.handle('soulseek-download', async (event, payload = {}) => {
     if (fileId && typeof fileId === 'object') {
       originalItem = fileId
       fileObj = fileId // keep full object (client often expects user + file fields)
+      console.log('[Main][soulseek-download] using fileId object')
     } else if (fileId && typeof fileId === 'string') {
       fileObj = { file: fileId }
+      console.log('[Main][soulseek-download] converted fileId string to object')
     } else if (file && typeof file === 'object') {
       originalItem = file
       fileObj = file
+      console.log('[Main][soulseek-download] using file object')
     } else if (file && typeof file === 'string') {
       fileObj = { file }
+      console.log('[Main][soulseek-download] converted file string to object')
     }
 
     if (!fileObj) {
@@ -734,32 +759,97 @@ ipcMain.handle('soulseek-download', async (event, payload = {}) => {
             const ws = fs.createWriteStream(outPath)
             let received = 0
             let finished = false
-            const streamTimer = setTimeout(() => {
-              if (!finished) {
-                finished = true
-                try { ws.end() } catch (e) {}
-                const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-stream-timeout-${Date.now()}.log`)
-                try { fs.writeFileSync(logPath, 'stream end timeout\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
-                return resolve({ error: 'stream-timeout', log: logPath })
-              }
-            }, 5 * 60 * 1000)
+            let firstData = false
+            // Initial timeout: wait up to 30s for first data chunk
+            const INITIAL_TIMEOUT_MS = 30 * 1000
+            // Inactivity timeout after first data: reset on activity. Use 5 minutes of inactivity as threshold.
+            const INACTIVITY_MS = 5 * 60 * 1000
+            let streamTimer = null
+            const startTimer = (isInitial = false) => {
+              try { if (streamTimer) clearTimeout(streamTimer) } catch (e) {}
+              const timeout = isInitial ? INITIAL_TIMEOUT_MS : INACTIVITY_MS
+              streamTimer = setTimeout(() => {
+                if (!finished) {
+                  finished = true
+                  try { ws.end() } catch (e) {}
+                  const errorMsg = firstData ? 'stream inactivity timeout' : 'stream no-data timeout'
+                  const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-stream-timeout-${Date.now()}.log`)
+                  try { fs.writeFileSync(logPath, errorMsg + '\n\n' + JSON.stringify({ fileObj, received, firstData }, null, 2)) } catch (e) {}
+                  console.log('[Main][soulseek-download]', errorMsg, 'for', filename)
+                  try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: 'stream-timeout', log: logPath }) } catch (e) {}
+                  return resolve({ error: 'stream-timeout', log: logPath })
+                }
+              }, timeout)
+            }
+
+            // prime the timer (initial, waiting for first data)
+            startTimer(true)
+
+            const sendProgress = () => {
+              try {
+                if (mainWindow && mainWindow.webContents) {
+                  mainWindow.webContents.send('soulseek-download-progress', { filename, received })
+                  mainWindow.webContents.send('download-progress', { filename, received, total: 0, path: outPath })
+                }
+              } catch (e) {}
+            }
 
             stream.on('data', (chunk) => {
+              if (!firstData) {
+                firstData = true
+                console.log('[Main][soulseek-download] first data received for', filename)
+              }
               received += chunk.length
-              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('soulseek-download-progress', { filename, received }) } catch (e) {}
+              // reset inactivity timer on activity (use inactivity timeout now)
+              startTimer(false)
+              sendProgress()
             })
-            stream.on('end', () => { if (finished) return; finished = true; clearTimeout(streamTimer); ws.end(); resolve({ ok: true, path: outPath }) })
+
+            const finishSuccess = () => {
+              if (finished) return
+              finished = true
+              try { if (streamTimer) clearTimeout(streamTimer) } catch (e) {}
+              try { ws.end() } catch (e) {}
+              try {
+                if (mainWindow && mainWindow.webContents) {
+                  mainWindow.webContents.send('soulseek-download-progress', { filename, received })
+                  mainWindow.webContents.send('download-progress', { filename, received, total: 0, path: outPath })
+                  mainWindow.webContents.send('download-complete', { filename, path: outPath })
+                }
+              } catch (e) {}
+              return resolve({ ok: true, path: outPath })
+            }
+
+            stream.on('end', finishSuccess)
+            stream.on('close', finishSuccess)
+
             stream.on('error', (err) => {
-              if (finished) return; finished = true; clearTimeout(streamTimer)
+              if (finished) return
+              finished = true
+              try { if (streamTimer) clearTimeout(streamTimer) } catch (e) {}
               try { ws.end() } catch (e) {}
               const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-${Date.now()}.log`)
               try { fs.writeFileSync(logPath, String(err.stack || err) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              console.log('[Main][soulseek-download] stream error:', String(err).substring(0, 100))
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: String(err), log: logPath }) } catch (e) {}
               return resolve({ error: String(err), log: logPath })
             })
+
+            ws.on('error', (err) => {
+              if (finished) return
+              finished = true
+              try { if (streamTimer) clearTimeout(streamTimer) } catch (e) {}
+              const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-write-${Date.now()}.log`)
+              try { fs.writeFileSync(logPath, String(err.stack || err) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: String(err), log: logPath }) } catch (e) {}
+              return resolve({ error: String(err), log: logPath })
+            })
+
             stream.pipe(ws)
           } catch (e) {
             const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-init-${Date.now()}.log`)
             try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+            try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: String(e), log: logPath }) } catch (err) {}
             return resolve({ error: String(e), log: logPath })
           }
         })
@@ -772,6 +862,7 @@ ipcMain.handle('soulseek-download', async (event, payload = {}) => {
 
     // Fallback: callback-based download
     if (typeof client.download === 'function') {
+      console.log('[Main][soulseek-download] using callback-based download fallback for', filename)
       return await new Promise((resolve) => {
         try {
           let settled = false
@@ -791,14 +882,17 @@ ipcMain.handle('soulseek-download', async (event, payload = {}) => {
             if (err) {
               const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-cb-${Date.now()}.log`)
               try { fs.writeFileSync(logPath, String(err.stack || err) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (e) {}
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: String(err), log: logPath }) } catch (e) {}
               return resolve({ error: String(err), log: logPath })
             }
             try {
-              if (Buffer.isBuffer(data)) { fs.writeFileSync(outPath, data); return resolve({ ok: true, path: outPath }) }
+              if (Buffer.isBuffer(data)) { fs.writeFileSync(outPath, data); try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, path: outPath }) } catch (e) {} ; return resolve({ ok: true, path: outPath }) }
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, path: outPath }) } catch (e) {}
               return resolve({ ok: true, path: outPath })
             } catch (e) {
               const logPath = path.join(__dirname, '..', 'build', 'logs', `soulseek-download-write-${Date.now()}.log`)
               try { fs.writeFileSync(logPath, String(e.stack || e) + '\n\n' + JSON.stringify({ fileObj }, null, 2)) } catch (er) {}
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-complete', { filename, error: String(e), log: logPath }) } catch (err) {}
               return resolve({ error: String(e), log: logPath })
             }
           })
@@ -946,6 +1040,49 @@ try {
   console.error('[Main] Failed to initialize auto-updater IPC handlers:', e)
 }
 
+// User data backup/restore handlers to preserve data between updates
+ipcMain.handle('backup-user-data', async (event) => {
+  try {
+    const userData = {}
+    // Collect all localStorage keys starting with 'uwt:' (Unwanted Tools)
+    // In Electron, we access it through the renderer process, so we ask the renderer to send it
+    if (mainWindow && mainWindow.webContents) {
+      const data = await mainWindow.webContents.executeJavaScript(`
+        const result = {}
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith('uwt:')) {
+            result[key] = localStorage.getItem(key)
+          }
+        }
+        result
+      `)
+      return { ok: true, data: data || {} }
+    }
+    return { ok: true, data: {} }
+  } catch (e) {
+    console.error('[Main] backup-user-data error:', e)
+    return { error: String(e) }
+  }
+})
+
+ipcMain.handle('restore-user-data', async (event, backup) => {
+  try {
+    // Restore backed up localStorage to renderer
+    if (mainWindow && mainWindow.webContents && backup && typeof backup === 'object') {
+      await mainWindow.webContents.executeJavaScript(`
+        Object.entries(${JSON.stringify(backup)}).forEach(([key, value]) => {
+          try { localStorage.setItem(key, value) } catch (e) {}
+        })
+      `)
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error('[Main] restore-user-data error:', e)
+    return { error: String(e) }
+  }
+})
+
 // Minimal MP3 search handler to avoid "No handler registered" errors.
 // Returns an empty items array for now; can be expanded to implement real search logic.
 ipcMain.handle('search-mp3', async (event, { artist = '', song = '', genre = '' } = {}) => {
@@ -1071,11 +1208,77 @@ ipcMain.handle('fetch-resources', async (event, link, filters = {}) => {
     try {
       const parsed = parseWaybackInput(link || '')
       if (parsed && parsed.original) {
+        // Detect prefix/wildcard searches (user provided a trailing *) or filters.deep request
+        const isPrefix = /\*$/.test(parsed.original) || (typeof link === 'string' && /\*$/.test(link)) || !!filters.deep
+        const limit = filters && filters.limit ? Math.min(200, Number(filters.limit)) : 50
+
+        if (isPrefix) {
+          // Remove trailing wildcard for CDX prefix search
+          let base = parsed.original.replace(/\*+$/,'')
+          // Ensure base includes protocol for CDX queries
+          if (!/^https?:\/\//i.test(base)) base = 'http://' + base
+
+          const cdxQuery = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(base)}&output=json&fl=timestamp,original&filter=statuscode:200&matchType=prefix&limit=${limit}`
+          try {
+            const cdxRes = await fetch(cdxQuery, { timeout: 20000 })
+            if (!cdxRes || !cdxRes.ok) return { items: [] }
+            const cdxJson = await cdxRes.json()
+            if (!Array.isArray(cdxJson) || cdxJson.length <= 1) return { items: [] }
+
+            // Collect unique (timestamp, original) pairs and fetch archived pages in batches
+            const rows = []
+            for (let i = 1; i < cdxJson.length; i++) {
+              const row = cdxJson[i]
+              if (!row || !row[0] || !row[1]) continue
+              rows.push({ ts: row[0], original: row[1] })
+            }
+
+            const items = []
+            const seen = new Set()
+            const concurrency = 4
+            for (let i = 0; i < rows.length; i += concurrency) {
+              // Emit progress event to renderer
+              const progress = Math.min(i + concurrency, rows.length)
+              event.sender.send('search-progress', { current: progress, total: rows.length })
+              
+              const batch = rows.slice(i, i + concurrency)
+              const promises = batch.map(async (r) => {
+                try {
+                  const res = await getResourcesFromArchivedPage(r.ts, r.original, 12)
+                  return res && res.items ? res.items : []
+                } catch (e) { return [] }
+              })
+              try {
+                const results = await Promise.all(promises)
+                for (const arr of results) {
+                  for (const it of arr) {
+                    const key = (it.archived || '')
+                    if (!key) continue
+                    if (seen.has(key)) continue
+                    seen.add(key)
+                    items.push(it)
+                    if (items.length >= limit) break
+                  }
+                  if (items.length >= limit) break
+                }
+              } catch (e) { /* ignore batch errors */ }
+              if (items.length >= limit) break
+            }
+
+            return { items }
+          } catch (e) {
+            console.error('[Main][fetch-resources] CDX prefix search failed:', String(e))
+            return { items: [] }
+          }
+        }
+
+        // Non-prefix (single original) behavior: delegate to existing extractor
         const res = await getResourcesFromArchivedPage(parsed.stamp || '*', parsed.original, filters && filters.limit ? Number(filters.limit) : 12)
         if (res && res.items) return { items: res.items }
       }
     } catch (e) {
       // fallthrough to empty
+      console.error('[Main][fetch-resources] error parsing input:', String(e))
     }
     return { items: [] }
   } catch (e) {
@@ -1158,6 +1361,206 @@ ipcMain.handle('soulseek-check-username', async (event, opts = {}) => {
     return res
   } catch (e) {
     console.error('[Main][soulseek-check-username] error:', e)
+    return { error: String(e) }
+  }
+})
+
+// Desktop notifications on download complete (Windows/macOS/Linux)
+ipcMain.on('show-notification', (event, { title, body, icon }) => {
+  try {
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: title || 'Unwanted Tools',
+        body: body || 'Download completed',
+        icon: icon || path.join(__dirname, '../build/icon.base64.txt')
+      })
+      notification.show()
+    }
+  } catch (e) {
+    console.log('[Main] notification error:', e.message)
+  }
+})
+
+// Video downloader handler (requires yt-dlp)
+ipcMain.handle('download-video', async (event, opts = {}) => {
+  const { url, destination } = opts
+  console.log('[Main][download-video] received:', { url, destination: destination?.substring(0, 50) })
+  
+  try {
+    if (!url) return { error: 'Missing URL' }
+    if (!destination) return { error: 'Missing destination' }
+    // For now, we'll return a message asking user to install it
+    // If this is a YouTube URL and ytdl-core is available, use it (no external binary needed)
+    const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(url)
+    if (isYouTube && ytdl) {
+      try {
+        const info = await ytdl.getInfo(url)
+        const title = (info.videoDetails && info.videoDetails.title) ? info.videoDetails.title.replace(/[<>:\"/\\|?*]+/g,'_') : `video_${Date.now()}`
+        const ext = opts.audioOnly ? 'webm' : 'mp4'
+        const filename = `${title}.${ext}`
+        const outPath = path.join(destination, filename)
+        const ytdlOpts = opts.audioOnly ? { quality: 'highestaudio', filter: 'audioonly' } : { quality: 'highestvideo' }
+        const stream = ytdl(url, ytdlOpts)
+        const ws = fs.createWriteStream(outPath)
+        stream.on('progress', (chunkLength, downloaded, total) => {
+          try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-progress', { type: 'progress', downloaded, total }) } catch (e) {}
+        })
+        stream.on('error', (err) => {
+          try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: false, error: String(err) }) } catch (e) {}
+        })
+        stream.pipe(ws)
+        return await new Promise((resolve) => {
+          ws.on('finish', () => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: true, path: outPath }) } catch (e) {} ; resolve({ ok: true, path: outPath }) })
+          ws.on('error', (e) => { try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: false, error: String(e) }) } catch (er) {} ; resolve({ error: String(e) }) })
+        })
+      } catch (e) {
+        console.error('[Main][download-video][ytdl] error:', e)
+        // fall through to yt-dlp logic
+      }
+    }
+
+    const { spawn } = require('child_process')
+    
+      try {
+        // Determine executable path: prefer bundled `yt-dlp` from yt-dlp-exec, then .bin shim, then system 'yt-dlp'
+        const candidatesCheck = [
+          path.join(__dirname, '..', 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'),
+          path.join(__dirname, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'yt-dlp.cmd' : 'yt-dlp'),
+          'yt-dlp'
+        ]
+        let exePath = 'yt-dlp'
+        for (const c of candidatesCheck) {
+          try { if (fs.existsSync(c)) { exePath = c; break } } catch (e) {}
+        }
+
+      return await new Promise((resolve) => {
+        let checked = false
+
+        const onAvailable = () => {
+          if (checked) return
+          checked = true
+          // yt-dlp is available, proceed with download
+          // Build yt-dlp args. Always use best quality. Support audio-only and playlist mode.
+          const outputTemplate = path.join(destination, '%(title)s.%(ext)s')
+          const args = ['-f', 'best', '-o', outputTemplate, url]
+
+          // By default, download only single video (no playlist)
+          // If user explicitly wants playlist, use --yes-playlist instead
+          if (opts.downloadPlaylist) {
+            args.push('--yes-playlist')
+            args.push('-i') // ignore errors for missing videos in playlist
+          } else {
+            args.push('--no-playlist')
+          }
+
+          if (opts.audioOnly) {
+            // extract audio and convert to mp3
+            args.unshift('-x')
+            args.push('--audio-format', 'mp3')
+            // ensure filename extension is mp3 in template
+          }
+
+          let output = ''
+          let errored = false
+          let download
+          try {
+            // Spawn yt-dlp binary directly (bundled in node_modules or from system)
+            // Prefer several local binary locations (yt-dlp-exec's bundled exe, .bin shims), then fallback to system 'yt-dlp'
+            const candidates = [
+              path.join(__dirname, '..', 'node_modules', 'yt-dlp-exec', 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'),
+              path.join(__dirname, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'yt-dlp.cmd' : 'yt-dlp'),
+              'yt-dlp'
+            ]
+            let exe = 'yt-dlp'
+            for (const c of candidates) {
+              try { if (fs.existsSync(c)) { exe = c; break } } catch (e) {}
+            }
+            // If we have ffmpeg bundled, pass it to yt-dlp
+            const ffmpegPath = getFFmpegPath()
+            if (ffmpegPath && ffmpegPath !== 'ffmpeg') {
+              args.push('--ffmpeg-location', ffmpegPath)
+            }
+            download = spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+          } catch (dErr) {
+            return resolve({ error: 'Failed to spawn yt-dlp for download', detail: String(dErr) })
+          }
+
+          // Stream stdout/stderr lines to renderer so UI can show progress
+          download.stdout.on('data', (data) => {
+            const text = data.toString()
+            output += text
+            try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-progress', { type: 'stdout', text }) } catch (e) {}
+            console.log('[Main][download-video] stdout:', text.substring(0, 200))
+          })
+
+          download.stderr.on('data', (data) => {
+            const text = data.toString()
+            output += text
+            try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-progress', { type: 'stderr', text }) } catch (e) {}
+          })
+
+          download.on('error', (err) => {
+            if (errored) return
+            errored = true
+            console.error('[Main][download-video] spawn error during download:', err && err.code, err && err.message)
+            try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: false, error: String(err) }) } catch (e) {}
+            return resolve({ error: 'yt-dlp spawn error', detail: String(err) })
+          })
+
+          download.on('close', (code) => {
+            if (code === 0) {
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: true, message: 'Video downloaded' }) } catch (e) {}
+              resolve({ ok: true, message: 'Video downloaded successfully' })
+            } else {
+              try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: false, error: output }) } catch (e) {}
+              resolve({ error: 'Video download failed', detail: output })
+            }
+          })
+        }
+
+        // spawn the exePath with --version to verify availability
+        let ytdlp = null
+        try {
+          ytdlp = spawn(exePath, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] })
+        } catch (err) {
+          if (checked) return
+          checked = true
+          return resolve({ error: 'yt-dlp spawn failed', info: 'yt-dlp not installed or not in PATH', detail: String(err) })
+        }
+
+        ytdlp.on('error', (err) => {
+          if (checked) return
+          checked = true
+          console.log('[Main][download-video] yt-dlp spawn error:', err && err.code)
+          return resolve({ error: 'yt-dlp not installed or not in PATH', info: 'Install via: pip install yt-dlp OR choco install yt-dlp', detail: String(err) })
+        })
+
+        ytdlp.on('close', (code) => {
+          if (checked) return
+          if (code === 0) return onAvailable()
+          checked = true
+          return resolve({ error: 'yt-dlp not available (non-zero exit)', info: 'Ensure yt-dlp is installed and runnable from PATH' })
+        })
+
+        // safety timeout: if yt-dlp doesn't respond within 5s, assume missing
+        const _t = setTimeout(() => {
+          if (checked) return
+          checked = true
+          try { ytdlp.kill && ytdlp.kill() } catch (e) {}
+          return resolve({ error: 'yt-dlp check timeout', info: 'yt-dlp did not respond; ensure it is installed and in PATH' })
+        }, 5000)
+      })
+    } catch (e) {
+      console.error('[Main][download-video] unexpected error:', e)
+      // persist error to logs for easier debugging
+      try { fs.mkdirSync(path.join(__dirname, '..', 'build', 'logs'), { recursive: true }) } catch (er) {}
+      const logPath = path.join(__dirname, '..', 'build', 'logs', `download-video-error-${Date.now()}.log`)
+      try { fs.writeFileSync(logPath, String(e.stack || e), 'utf8') } catch (er) {}
+      try { if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('download-video-complete', { ok: false, error: String(e), log: logPath }) } catch (er) {}
+      return { error: 'download-video-unexpected', detail: String(e), log: logPath }
+    }
+  } catch (e) {
+    console.error('[Main][download-video] error:', e)
     return { error: String(e) }
   }
 })

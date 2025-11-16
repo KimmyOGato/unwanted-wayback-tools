@@ -46,6 +46,36 @@ const locales = {
     cancelled: 'Cancelado',
     download_destination_prompt: 'Selecione a pasta onde salvar o arquivo',
     stream_timeout_error: 'Tempo de download excedido (stream).'
+    ,
+    available: 'Disponível',
+    unavailable: 'Indisponível',
+    'handed-off': 'Encaminhado para Downloads'
+    ,
+    settings_title: 'Configurações',
+    label_language: 'Idioma',
+    label_theme: 'Tema',
+    settings_button_title: 'Abrir configurações'
+    ,
+    wayback_title: 'Wayback Machine Search',
+    wayback_subtitle: 'Pesquise versões arquivadas de qualquer site ou domínio.',
+    enter_url_placeholder: 'Cole URL ou domínio (ex.: example.com ou http://example.com)',
+    all_types: 'Todos',
+    images: 'Imagens',
+    media: 'Áudio/Vídeo',
+    documents: 'Documentos',
+    date_filters: 'Filtros de data (Opcional)',
+    captures_label: 'Capturas:',
+    results_label: 'Resultados',
+    no_results_msg: 'Ainda não há resultados. Insira uma URL e pesquise.',
+    expand_group: 'Expandir grupo',
+    collapse_group: 'Colapsar grupo',
+    download_selected_text: 'Baixar selecionados'
+    ,
+    menu_wayback: 'Wayback Search',
+    menu_mp3: 'MP3 Search',
+    menu_soulseek: 'Soulseek',
+    menu_downloads: 'Downloads',
+    menu_credits: 'Credits'
   },
   'en-US': {
     title: 'Unwanted Tools',
@@ -94,8 +124,178 @@ const locales = {
     cancelled: 'Cancelled',
     download_destination_prompt: 'Select folder to save the file',
     stream_timeout_error: 'Download timed out (stream).'
+    ,
+    available: 'Available',
+    unavailable: 'Unavailable',
+    'handed-off': 'Handed off to Downloads'
+    ,
+    settings_title: 'Settings',
+    label_language: 'Language',
+    label_theme: 'Theme',
+    settings_button_title: 'Open settings'
+    ,
+    wayback_title: 'Wayback Machine Search',
+    wayback_subtitle: 'Search for archived versions of any website or domain.',
+    enter_url_placeholder: 'Enter URL or domain (e.g., example.com or http://example.com)',
+    all_types: 'All Types',
+    images: 'Images',
+    media: 'Audio/Video',
+    documents: 'Documents',
+    date_filters: 'Date Filters (Optional)',
+    captures_label: 'Captures:',
+    results_label: 'Results',
+    no_results_msg: 'No results yet. Enter a URL and search.',
+    expand_group: 'Expand group',
+    collapse_group: 'Collapse group',
+    download_selected_text: 'Download Selected'
+    ,
+    menu_wayback: 'Wayback Search',
+    menu_mp3: 'MP3 Search',
+    menu_soulseek: 'Soulseek',
+    menu_downloads: 'Downloads',
+    menu_credits: 'Credits'
   }
+  ,
+  // Additional keys used by advanced/search/updater/theme UI
+  'pt-BR-extra': {}
 }
+
+// Add missing keys for the components we localized above (merged into locales objects)
+locales['pt-BR'] = Object.assign({}, locales['pt-BR'], {
+  theme_preto_total_label: 'Preto total',
+  theme_preto_total_desc: 'Contraste máximo, fundos 100% preto',
+  theme_preto_label: 'Preto',
+  theme_preto_desc: 'Escuro com leve contraste',
+  theme_roxo_escuro_label: 'Roxo escuro',
+  theme_roxo_escuro_desc: 'Tons roxos sofisticados',
+  theme_vermelho_escuro_label: 'Vermelho escuro',
+  theme_vermelho_escuro_desc: 'Tons quentes e sóbrios',
+
+  advanced_title: 'Wayback Deep Search',
+  advanced_description: 'Cole até 50 links Wayback/original (uma por linha). O app agregará os resultados.',
+  advanced_placeholder: 'https://web.archive.org/web/...\nhttp://example.com',
+  please_paste_links: 'Cole um ou mais links (até 50).',
+  download_queued: 'Download enfileirado (verifique o status).',
+  downloads_requested_for: 'Downloads solicitados para {count} itens',
+
+  progress_searching: 'Buscando páginas ({current}/{total})...',
+  clear_history: 'Limpar histórico',
+  search_history: 'Histórico de buscas',
+  no_history: 'Nenhum histórico de busca',
+  select_all: 'Selecionar tudo',
+  deselect_all: 'Deselecionar tudo',
+  export_json: 'Exportar JSON',
+  export_csv: 'Exportar CSV',
+  exported_success: 'Resultados exportados com sucesso',
+  download_completed_notification: 'Download concluído: {filename}',
+  download_failed_retry: 'Retry',
+
+  // Statistics
+  statistics: 'Estatísticas',
+  files_downloaded: 'Arquivos baixados',
+  space_saved: 'Espaço total',
+  total_time: 'Tempo total',
+  by_type: 'Por tipo',
+  clear_stats: 'Limpar estatísticas',
+  
+  // Video downloader
+  video_downloader: 'Download de Vídeo',
+  paste_video_url: 'Cole URL do YouTube/Vimeo/etc',
+  video_quality: 'Qualidade',
+  download_video: 'Baixar vídeo',
+  download_subtitle: 'Com legendas',
+  audio_only: 'Apenas áudio (mp3)',
+  download_playlist: 'Baixar playlist inteira',
+  video_downloading: 'Baixando vídeo...',
+  
+  // Themes
+  theme_rosa_label: 'Rosa',
+  theme_rosa_desc: 'Tons quentes e vibrantes',
+  theme_azul_label: 'Azul',
+  theme_azul_desc: 'Tons frios e profissionais',
+  theme_verde_label: 'Verde',
+  theme_verde_desc: 'Tons naturais e relaxantes',
+
+  check_updates_button: 'Verificar atualizações',
+  checking_updates: 'Verificando...',
+  update_available_title: 'Atualização disponível',
+  update_available_message: 'Versão {version} está disponível. Deseja baixar agora?',
+  download_button: 'Baixar',
+  later_button: 'Depois',
+  cancel_download_button: 'Cancelar download',
+  update_ready_title: 'Atualização pronta',
+  update_ready_message: 'Atualização {version} foi baixada. Instalar agora?',
+  install_and_restart: 'Instalar e Reiniciar',
+  error_label: 'Erro:'
+})
+
+locales['en-US'] = Object.assign({}, locales['en-US'], {
+  theme_preto_total_label: 'Pure Black',
+  theme_preto_total_desc: 'Maximum contrast, 100% black backgrounds',
+  theme_preto_label: 'Black',
+  theme_preto_desc: 'Dark with slight contrast',
+  theme_roxo_escuro_label: 'Dark Purple',
+  theme_roxo_escuro_desc: 'Sophisticated purple tones',
+  theme_vermelho_escuro_label: 'Dark Red',
+  theme_vermelho_escuro_desc: 'Warm sober tones',
+
+  advanced_title: 'Wayback Deep Search',
+  advanced_description: 'Paste up to 50 Wayback/original links (one per line). The app will aggregate results.',
+  advanced_placeholder: 'https://web.archive.org/web/...\nhttp://example.com',
+  please_paste_links: 'Please paste one or more links (up to 50).',
+  download_queued: 'Download queued (check status).',
+  downloads_requested_for: 'Downloads requested for {count} items',
+
+  progress_searching: 'Searching pages ({current}/{total})...',
+  clear_history: 'Clear history',
+  search_history: 'Search history',
+  no_history: 'No search history',
+  select_all: 'Select all',
+  deselect_all: 'Deselect all',
+  export_json: 'Export JSON',
+  export_csv: 'Export CSV',
+  exported_success: 'Results exported successfully',
+  download_completed_notification: 'Download completed: {filename}',
+  download_failed_retry: 'Retry',
+
+  // Statistics
+  statistics: 'Statistics',
+  files_downloaded: 'Files downloaded',
+  space_saved: 'Total space',
+  total_time: 'Total time',
+  by_type: 'By type',
+  clear_stats: 'Clear statistics',
+  
+  // Video downloader
+  video_downloader: 'Video Download',
+  paste_video_url: 'Paste YouTube/Vimeo/etc URL',
+  video_quality: 'Quality',
+  download_video: 'Download video',
+  download_subtitle: 'With subtitles',
+  audio_only: 'Audio only (mp3)',
+  download_playlist: 'Download entire playlist',
+  video_downloading: 'Downloading video...',
+  
+  // Themes
+  theme_rosa_label: 'Pink',
+  theme_rosa_desc: 'Warm and vibrant tones',
+  theme_azul_label: 'Blue',
+  theme_azul_desc: 'Cool and professional tones',
+  theme_verde_label: 'Green',
+  theme_verde_desc: 'Natural and relaxing tones',
+
+  check_updates_button: 'Check for updates',
+  checking_updates: 'Checking...',
+  update_available_title: 'Update available',
+  update_available_message: 'Version {version} is available. Do you want to download it now?',
+  download_button: 'Download',
+  later_button: 'Later',
+  cancel_download_button: 'Cancel download',
+  update_ready_title: 'Update ready',
+  update_ready_message: 'Update {version} has been downloaded. Install now?',
+  install_and_restart: 'Install and Restart',
+  error_label: 'Error:'
+})
 
 export const useLocale = (lang) => locales[lang] || locales['pt-BR']
 

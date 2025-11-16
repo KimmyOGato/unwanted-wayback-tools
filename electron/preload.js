@@ -23,6 +23,22 @@ const apiHandler = {
     console.log('[Preload] openExternal called with url:', url)
     return ipcRenderer.invoke('open-external', url)
   },
+  sendNotification: (opts) => {
+    console.log('[Preload] sendNotification called')
+    ipcRenderer.send('show-notification', opts)
+  },
+  downloadVideo: (opts) => {
+    console.log('[Preload] downloadVideo called with opts:', opts)
+    return ipcRenderer.invoke('download-video', opts)
+  },
+  onVideoDownloadProgress: (cb) => {
+    console.log('[Preload] onVideoDownloadProgress listener registered')
+    ipcRenderer.on('download-video-progress', (e, data) => cb(data))
+  },
+  onVideoDownloadComplete: (cb) => {
+    console.log('[Preload] onVideoDownloadComplete listener registered')
+    ipcRenderer.on('download-video-complete', (e, data) => cb(data))
+  },
   onDownloadProgress: (cb) => {
     console.log('[Preload] onDownloadProgress listener registered')
     ipcRenderer.on('download-progress', (e, data) => cb(data))
@@ -69,6 +85,16 @@ try {
   console.error('[Preload] Failed to register onDownloadComplete:', err)
 }
 
+// search-progress listener
+try {
+  apiHandler.onSearchProgress = (cb) => {
+    console.log('[Preload] onSearchProgress listener registered')
+    ipcRenderer.on('search-progress', (e, data) => cb(data))
+  }
+} catch (err) {
+  console.error('[Preload] Failed to register onSearchProgress:', err)
+}
+
 try {
   contextBridge.exposeInMainWorld('api', apiHandler)
   console.log('[Preload] Successfully exposed window.api')
@@ -83,6 +109,8 @@ try {
     downloadUpdate: () => ipcRenderer.invoke('download-update'),
     cancelDownload: () => ipcRenderer.invoke('cancel-update-download'),
     installUpdate: () => ipcRenderer.invoke('install-update'),
+    backupUserData: () => ipcRenderer.invoke('backup-user-data'),
+    restoreUserData: (backup) => ipcRenderer.invoke('restore-user-data', backup),
     onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (e, info) => cb(info)),
     onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', (e, info) => cb(info)),
     onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (e, info) => cb(info)),

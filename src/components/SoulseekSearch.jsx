@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useLocale } from '../locales'
 
 function humanSize(bytes) {
   if (!bytes && bytes !== 0) return ''
@@ -22,7 +23,41 @@ function humanSpeed(sp) {
   return n + ' B/s'
 }
 
-export default function SoulseekSearch() {
+// Convert ISO country code (e.g. 'US', 'BR') to regional indicator emoji flag
+function countryCodeToEmoji(code) {
+  if (!code || typeof code !== 'string') return null
+  const cc = code.trim().toUpperCase()
+  if (cc.length !== 2) return null
+  // Regional indicator symbols start at 0x1F1E6 for 'A'
+  const first = cc.charCodeAt(0) - 0x41 + 0x1F1E6
+  const second = cc.charCodeAt(1) - 0x41 + 0x1F1E6
+  try {
+    return String.fromCodePoint(first, second)
+  } catch (e) {
+    return null
+  }
+}
+
+// Generate a small inline SVG data URL as a local "flag" for the country code.
+// This avoids external CDN/CORS issues. The SVG is a simple colored rectangle
+// with the 2-letter code overlaid. If you prefer real flags, replace with
+// local PNG/SVG assets under `build/flags/` and map codes accordingly.
+function getLocalFlagDataUrl(code) {
+  if (!code || typeof code !== 'string') return null
+  const cc = code.trim().toUpperCase().slice(0,2)
+  if (cc.length !== 2) return null
+  // Derive a stable hue from the two letters
+  const h = (cc.charCodeAt(0) * 31 + cc.charCodeAt(1) * 17) % 360
+  const bg = `hsl(${h} 60% 36%)`
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='16' viewBox='0 0 24 16'>` +
+    `<rect width='24' height='16' fill='${bg}' rx='2'/>` +
+    `<text x='50%' y='50%' font-family='Segoe UI, Roboto, Arial' font-size='9' fill='#fff' text-anchor='middle' dominant-baseline='central'>${cc}</text>` +
+    `</svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+export default function SoulseekSearch({ locale: localeProp }) {
+  const locale = localeProp || useLocale('pt-BR')
   const [host, setHost] = useState('server.slsknet.org')
   const [port, setPort] = useState(2242)
   const [username, setUsername] = useState('')
@@ -32,12 +67,17 @@ export default function SoulseekSearch() {
   const [status, setStatus] = useState('')
   const [results, setResults] = useState([])
   const [itemStatus, setItemStatus] = useState({})
+  const [geoMap, setGeoMap] = useState({}) // map index -> country code
+  const geoCacheRef = React.useRef({}) // ip -> country code cache
+  const handedOffRef = React.useRef(new Set()) // filenames handed to Downloads UI
   // debug helpers removed for production
 
   // listen for download progress from main
   React.useEffect(() => {
     if (window.soulseekEvents && window.soulseekEvents.onDownloadProgress) {
       window.soulseekEvents.onDownloadProgress(({ filename, received }) => {
+        // If this filename was handed off to the Downloads UI, ignore local updates
+        if (handedOffRef.current.has(filename)) return
         // find index by filename
         const idx = results.findIndex(r => renderFilename(r) === filename)
         if (idx >= 0) {
@@ -108,12 +148,57 @@ export default function SoulseekSearch() {
       if (res && res.items) {
         setResults(res.items)
         setStatus(`Found ${res.items.length} items`)
+        // kick off geo resolution for results
+        resolveGeoForResults(res.items)
       } else if (res && res.error) {
         setStatus('Error: ' + res.error + (res.message ? ' - ' + res.message : ''))
       } else setStatus('No results')
     } catch (e) {
       setStatus('Search failed: ' + String(e))
     }
+  }
+
+  // Resolve geo (country code) for items — use explicit fields or GeoIP lookup by IP
+  const resolveGeoForResults = async (items) => {
+    if (!Array.isArray(items) || items.length === 0) return
+    const newMap = {}
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i]
+      const code = r.country || r.countryCode || r.country_code || r.cc || (r.location && r.location.countryCode)
+      if (code && typeof code === 'string' && code.length >= 2) {
+        newMap[i] = String(code).trim().toUpperCase().slice(0,2)
+        continue
+      }
+      // try IP-like fields
+      const ip = r.ip || r.peer || r.host || r.address || r.hostname || (r.location && r.location.ip)
+      if (ip && typeof ip === 'string') {
+        // check cache
+        const cached = geoCacheRef.current[ip]
+        if (cached) {
+          newMap[i] = cached
+          continue
+        }
+        // fetch country via ipapi.co (public, rate-limited)
+        try {
+          const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, { timeout: 8000 })
+          if (res && res.ok) {
+            const j = await res.json()
+            const cc = j && (j.country || j.country_code || j.country_code_iso3 || j.country_name) ? (j.country || j.country_code || j.country_code_iso3) : null
+            if (cc && typeof cc === 'string' && cc.length >= 2) {
+              const cc2 = cc.trim().toUpperCase().slice(0,2)
+              geoCacheRef.current[ip] = cc2
+              newMap[i] = cc2
+              continue
+            }
+          }
+        } catch (e) {
+          // ignore geo lookup failures
+        }
+      }
+      // no code found — leave undefined
+    }
+    // merge into state
+    setGeoMap(prev => ({ ...prev, ...newMap }))
   }
 
   const startDownload = async (item, idx) => {
@@ -131,8 +216,19 @@ export default function SoulseekSearch() {
       const sep = folder.includes('\\') ? '\\' : '/'
       const destination = folder.replace(/[\\/]+$/, '') + sep + filename
 
+      // Enqueue the download so the Downloads tab shows the item.
+      try {
+        const id = `soulseek_${Date.now()}_${Math.floor(Math.random()*10000)}`
+        window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: 'soulseek', folder, filename, external: true } }))
+        // mark as handed off so the Soulseek UI does not show duplicate progress/errors
+        handedOffRef.current.add(filename)
+        setItemStatus(s => ({ ...s, [idx]: { status: 'handed-off' } }))
+      } catch (e) { /* best-effort, continue */ }
+
       // Provide the full search-result object under `fileId` so the main
-      // handler can normalize it reliably.
+      // handler can normalize it reliably. The actual transfer is handled
+      // by the main process (P2P); we keep the Downloads UI in sync via
+      // emitted progress/complete events.
       const res = await window.soulseek.download({ fileId: item, destination, creds: { host, port, username, password } })
       if (res && res.ok) {
         setItemStatus(s => ({ ...s, [idx]: { status: 'completed', path: res.path || '', raw: res } }))
@@ -189,7 +285,24 @@ export default function SoulseekSearch() {
           <tbody>
             {results.map((r, i) => (
               <tr key={i} className="soulseek-row">
-                <td className="td-user">{r.user || r.username || ''}</td>
+                <td className="td-user">
+                  {/* show flag image if resolved, fallback to emoji */}
+                  {(() => {
+                    const ccExplicit = r.country || r.countryCode || r.country_code || r.cc || (r.location && r.location.countryCode)
+                    const ccState = geoMap[i]
+                    const code = (ccExplicit && String(ccExplicit).trim().toUpperCase().slice(0,2)) || ccState || null
+                    if (code) {
+                      // prefer a local inline SVG data URL (stable, no external requests)
+                      const dataUrl = getLocalFlagDataUrl(code)
+                      if (dataUrl) {
+                        return <img src={dataUrl} alt={code} className="flag-img" />
+                      }
+                    }
+                    const emoji = countryCodeToEmoji(code)
+                    return emoji ? <span className="flag-icon" aria-hidden>{emoji}</span> : null
+                  })()}
+                  <span className="user-name">{r.user || r.username || ''}</span>
+                </td>
                 <td className="td-speed">{humanSpeed(r.speed || r.upload || '')}</td>
                 <td className="td-slots">{r.slots ? 'Yes' : 'No'}</td>
                 <td className="td-size">{humanSize(r.size)}</td>
@@ -200,15 +313,15 @@ export default function SoulseekSearch() {
                     {(() => {
                       const avail = !!(r.available || r.open || (typeof r.slots !== 'undefined' && !!r.slots))
                       return (
-                        <div className={`availability ${avail ? 'available' : 'unavailable'}`} title={avail ? 'Available for download' : 'Not available (no open slots or blocked)'}>
+                        <div className={`availability ${avail ? 'available' : 'unavailable'}`} title={avail ? (locale.available || 'Available for download') : (locale.unavailable || 'Not available') }>
                           <span className="avail-dot" />
-                          <span className="avail-text">{avail ? 'Available' : 'Unavailable'}</span>
+                          <span className="avail-text">{avail ? (locale.available || 'Available') : (locale.unavailable || 'Unavailable')}</span>
                         </div>
                       )
                     })()}
 
                     <button className="btn" onClick={() => startDownload(r, i)} disabled={!(r.available || r.open || (typeof r.slots !== 'undefined' && !!r.slots))}>Download</button>
-                    <div className="item-status">{itemStatus[i] ? itemStatus[i].status : ''}{itemStatus[i] && itemStatus[i].message ? ` — ${itemStatus[i].message}` : ''}</div>
+                    <div className="item-status">{(itemStatus[i] && itemStatus[i].status && itemStatus[i].status !== 'handed-off') ? itemStatus[i].status : ''}{itemStatus[i] && itemStatus[i].message ? ` — ${itemStatus[i].message}` : ''}</div>
                   </div>
                 </td>
               </tr>

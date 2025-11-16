@@ -10,6 +10,8 @@ import SoulseekSearch from './components/SoulseekSearch'
 import UpdaterPrompt from './components/UpdaterPrompt'
 import ThemeSelector from './components/ThemeSelector'
 import HeaderSettings from './components/HeaderSettings'
+import Statistics from './components/Statistics'
+import VideoDownloader from './components/VideoDownloader'
 import './App.css'
 
 // Check if window.api is available (Electron preload injection)
@@ -20,7 +22,9 @@ if (!window.api) {
 export default function App() {
   const [isMaximized, setIsMaximized] = useState(false)
   const [updateStatus, setUpdateStatus] = useState(null)
-  const [lang, setLang] = useState('pt-BR')
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem('uwt:lang') || 'pt-BR' } catch (e) { return 'pt-BR' }
+  })
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedIndices, setSelectedIndices] = useState(new Set())
@@ -40,6 +44,10 @@ export default function App() {
 
   const locale = useLocale(lang)
 
+  useEffect(() => {
+    try { localStorage.setItem('uwt:lang', lang) } catch (e) {}
+  }, [lang])
+
   // Initialize download manager
   useEffect(() => {
     const MAX_CONCURRENT = 3
@@ -47,10 +55,26 @@ export default function App() {
     let queuePos = 0
 
     const processQueue = async () => {
-      if (queuePos >= downloadQueue.length || activeDownloads >= MAX_CONCURRENT) return
+      if (queuePos >= downloadQueue.length) return
 
       const item = downloadQueue[queuePos]
       queuePos++
+
+      // If this is an external download (e.g. Soulseek P2P), the main process
+      // performs the transfer and will emit progress/complete events. We
+      // simply add the item to the UI and continue without consuming a
+      // download slot in the internal concurrency limiter.
+      if (item && item.external) {
+        setDownloadStatus(prev => ({
+          ...prev,
+          [item.filename]: { status: 'downloading', received: 0, total: 0 }
+        }))
+        // continue processing remaining queue entries
+        setTimeout(processQueue, 10)
+        return
+      }
+
+      if (activeDownloads >= MAX_CONCURRENT) return
       activeDownloads++
 
       setDownloadStatus(prev => ({
@@ -217,9 +241,9 @@ export default function App() {
   return (
     <div className={`app ${theme}`}>
       <div className="content-area">
-        <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} />
+        <Menu mode={mode} onSelect={handleModeSelect} theme={theme} onToggleTheme={toggleTheme} locale={locale} />
         <main className="main-area">
-          <UpdaterPrompt />
+          <UpdaterPrompt locale={locale} />
           <header className="header">
             <div className="header-inner">
               <div className="brand" />
@@ -230,14 +254,17 @@ export default function App() {
                   onLangChange={(l) => setLang(l)}
                   theme={theme}
                   onThemeChange={(t) => { setTheme(t); try { localStorage.setItem('uwt:theme', t) } catch (e) {} }}
+                  locale={locale}
                 />
               </div>
             </div>
           </header>
 
-          {mode === 'wayback' && <WaybackSimpleSearch />}
-          {mode === 'mp3' && <Mp3Search />}
-          {mode === 'soulseek' && <SoulseekSearch />}
+          {mode === 'wayback' && <WaybackSimpleSearch locale={locale} />}
+          {mode === 'mp3' && <Mp3Search locale={locale} />}
+          {mode === 'soulseek' && <SoulseekSearch locale={locale} />}
+          {mode === 'video' && <VideoDownloader locale={locale} />}
+          {mode === 'statistics' && <Statistics locale={locale} />}
 
           {mode === 'credits' && (
             <div className="credits">
@@ -246,14 +273,6 @@ export default function App() {
                 <li><a href="https://github.com/Oyukihiro/Unwanted" target="_blank" rel="noreferrer">Oyukihiro / Unwanted</a></li>
               </ul>
             </div>
-          )}
-
-          {mode === 'downloads' && (
-            <DownloadStatus
-              queue={downloadQueue}
-              status={downloadStatus}
-              locale={locale}
-            />
           )}
         </main>
       </div>

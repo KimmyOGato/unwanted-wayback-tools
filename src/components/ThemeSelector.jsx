@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 
-const THEMES = [
-  { id: 'preto-total', label: 'Preto total', desc: 'Contrast máximo, fundos 100% preto' },
-  { id: 'preto', label: 'Preto', desc: 'Escuro com leve contraste' },
-  { id: 'roxo-escuro', label: 'Roxo escuro', desc: 'Tons roxos sofisticados' },
-  { id: 'vermelho-escuro', label: 'Vermelho escuro', desc: 'Tons quentes e sóbrios' }
+const THEME_IDS = [
+  'preto-total',
+  'preto',
+  'roxo-escuro',
+  'vermelho-escuro',
+  'rosa',
+  'azul',
+  'verde'
 ]
 
-export default function ThemeSelector({ value, onChange }) {
+export default function ThemeSelector({ value, onChange, locale = {} }) {
   const [selected, setSelected] = useState(value || 'preto')
 
   useEffect(() => {
@@ -23,18 +26,23 @@ export default function ThemeSelector({ value, onChange }) {
   }
 
   return (
-    <div className="theme-selector" role="group" aria-label="Selecionar tema">
-      {THEMES.map(t => (
-        <button
-          key={t.id}
-          className={`theme-btn ${selected === t.id ? 'active' : ''}`}
-          title={`${t.label} — ${t.desc}`}
-          onClick={() => pick(t.id)}
-        >
-          <span className={`swatch ${t.id}`} aria-hidden />
-          <span className="lbl">{t.label}</span>
-        </button>
-      ))}
+    <div className="theme-selector" role="group" aria-label={locale.label_theme || 'Theme'}>
+      {THEME_IDS.map(id => {
+        const keyBase = `theme_${id.replace(/-/g, '_')}`
+        const label = locale[`${keyBase}_label`] || id
+        const desc = locale[`${keyBase}_desc`] || ''
+        return (
+          <button
+            key={id}
+            className={`theme-btn ${selected === id ? 'active' : ''}`}
+            title={desc ? `${label} — ${desc}` : label}
+            onClick={() => pick(id)}
+          >
+            <span className={`swatch ${id}`} aria-hidden />
+            <span className="lbl">{label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

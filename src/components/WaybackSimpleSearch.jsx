@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ResultsGrid from './ResultsGrid'
+import ResultCard from './ResultCard'
 
-export default function WaybackSimpleSearch() {
+export default function WaybackSimpleSearch({ locale: localeProp }) {
+  const locale = localeProp || { wayback_title: 'Wayback Machine Search', wayback_subtitle: 'Search for archived versions of any website or domain.', enter_url_placeholder: 'Enter URL or domain (e.g., example.com or http://example.com)', all_types: 'All Types', images: 'Images', media: 'Audio/Video', documents: 'Documents', date_filters: 'Date Filters (Optional)', captures_label: 'Captures:', results_label: 'Results', no_results_msg: 'No results yet. Enter a URL and search.', download_selected_text: 'Download Selected', search_history: 'Search history', clear_history: 'Clear history', no_history: 'No search history', select_all: 'Select all', deselect_all: 'Deselect all', export_json: 'Export JSON', export_csv: 'Export CSV', progress_searching: 'Searching pages ({current}/{total})...' }
   const [url, setUrl] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -11,15 +13,67 @@ export default function WaybackSimpleSearch() {
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState({})
+  const [searchHistory, setSearchHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [progress, setProgress] = useState(null)
 
-  const handleSearch = async () => {
-    if (!url.trim()) return alert('Please enter a URL, domain, or Wayback link')
+  // Load search history from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('wayback-search-history')
+    if (saved) {
+      try {
+        setSearchHistory(JSON.parse(saved))
+      } catch (e) {}
+    }
+  }, [])
+
+  // Listen for progress events from main process
+  useEffect(() => {
+    if (window.api && window.api.onSearchProgress) {
+      window.api.onSearchProgress((data) => {
+        console.log('[WaybackSimpleSearch] Progress:', data)
+        setProgress(data)
+      })
+    }
+  }, [])
+
+  // Listen for progress events from custom event
+  useEffect(() => {
+    const handleProgress = (e) => {
+      console.log('[WaybackSimpleSearch] Custom event progress:', e.detail)
+      setProgress(e.detail)
+    }
+    window.addEventListener('search-progress', handleProgress)
+    return () => window.removeEventListener('search-progress', handleProgress)
+  }, [])
+
+  // Save search to history
+  const saveToHistory = (searchUrl) => {
+    const updated = [searchUrl, ...searchHistory.filter(s => s !== searchUrl)].slice(0, 10)
+    setSearchHistory(updated)
+    localStorage.setItem('wayback-search-history', JSON.stringify(updated))
+  }
+
+  const clearHistory = () => {
+    setSearchHistory([])
+    localStorage.removeItem('wayback-search-history')
+    setShowHistory(false)
+  }
+
+  const handleSearch = async (searchUrl = null) => {
+    const searchInput = searchUrl || url.trim()
+    if (!searchInput) return alert('Please enter a URL, domain, or Wayback link')
+    
     setLoading(true)
+    setProgress(null)
+    if (searchUrl) setUrl(searchUrl)
+    saveToHistory(searchInput)
+    
     try {
       // Check if it's a Wayback link or a simple URL
-      const isWaybackLink = url.includes('web.archive.org')
+      const isWaybackLink = searchInput.includes('web.archive.org')
       
-      let fetchUrl = url
+      let fetchUrl = searchInput
       let filters = {}
       
       // If it's not a Wayback link, treat it as a domain search with date filters
@@ -70,6 +124,8 @@ export default function WaybackSimpleSearch() {
       alert('Error: ' + String(e))
     }
     setLoading(false)
+    setProgress(null)
+    setShowHistory(false)
   }
 
   const handleDownloadSelected = async () => {
@@ -81,8 +137,54 @@ export default function WaybackSimpleSearch() {
       const filename = `${it.timestamp || ''}_${it.original.split('/').pop()}`
       const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
       window.dispatchEvent(new CustomEvent('enqueue-download', { detail: { id, archived: it.archived, folder, filename, groupTitle: it.groupTitle, groupYear: it.groupYear } }))
+      // Send desktop notification (safe call)
+      try {
+        if (window.api && window.api.sendNotification) {
+          window.api.sendNotification({ title: 'Download', body: `Queued: ${filename}` })
+        }
+      } catch (e) { console.log('[WaybackSimpleSearch] notification error:', e.message) }
     }
     alert('Downloads requested for ' + toDownload.length + ' items')
+  }
+
+  const handleSelectAll = () => {
+    setSelected(new Set(results.map((_, idx) => idx)))
+  }
+
+  const handleDeselectAll = () => {
+    setSelected(new Set())
+  }
+
+  const exportResults = (format) => {
+    if (results.length === 0) return alert('No results to export')
+    
+    let content, filename, type
+    if (format === 'json') {
+      content = JSON.stringify(results, null, 2)
+      filename = `wayback-results-${Date.now()}.json`
+      type = 'application/json'
+    } else if (format === 'csv') {
+      const headers = ['timestamp', 'original', 'archived', 'mimetype', 'size', 'groupTitle', 'groupYear']
+      const rows = results.map(it => headers.map(h => {
+        const val = it[h] || ''
+        // Escape CSV values
+        return `"${String(val).replace(/"/g, '""')}"`
+      }).join(','))
+      content = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n')
+      filename = `wayback-results-${Date.now()}.csv`
+      type = 'text/csv'
+    }
+
+    const blob = new Blob([content], { type })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    alert(locale.exported_success || 'Results exported successfully')
   }
 
   const handleKeyPress = (e) => {
@@ -91,32 +193,66 @@ export default function WaybackSimpleSearch() {
 
   return (
     <div className="wayback-simple-search">
-      <h3>Wayback Machine Search</h3>
-      <p>Search for archived versions of any website or domain.</p>
+      <h3>{locale.wayback_title}</h3>
+      <p>{locale.wayback_subtitle}</p>
 
       <div className="search-controls">
-        <input
-          type="text"
-          placeholder="Enter URL or domain (e.g., example.com or http://example.com)"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyPress={handleKeyPress}
-          disabled={loading}
-        />
+        <div className="search-input-wrapper">
+          <input
+            type="text"
+            placeholder={locale.enter_url_placeholder}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyPress={handleKeyPress}
+            onFocus={() => setShowHistory(true)}
+            disabled={loading}
+          />
+          {showHistory && searchHistory.length > 0 && (
+            <div className="search-history-dropdown">
+              <div className="history-header">
+                <span>{locale.search_history}</span>
+                <button onClick={clearHistory} className="clear-btn">{locale.clear_history}</button>
+              </div>
+              <div className="history-list">
+                {searchHistory.map((item, idx) => (
+                  <div key={idx} className="history-item" onClick={() => handleSearch(item)}>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {showHistory && searchHistory.length === 0 && (
+            <div className="search-history-dropdown">
+              <div className="no-history">{locale.no_history}</div>
+            </div>
+          )}
+        </div>
         <select value={type} onChange={(e) => setType(e.target.value)} disabled={loading}>
-          <option value="all">All Types</option>
-          <option value="images">Images</option>
-          <option value="media">Audio/Video</option>
-          <option value="documents">Documents</option>
+          <option value="all">{locale.all_types}</option>
+          <option value="images">{locale.images}</option>
+          <option value="media">{locale.media}</option>
+          <option value="documents">{locale.documents}</option>
         </select>
-        <button onClick={handleSearch} disabled={loading} className="btn">
-          {loading ? 'Searching...' : 'Search'}
+        <button onClick={() => handleSearch()} disabled={loading} className="btn">
+          {loading ? (locale.searching || 'Searching...') : (locale.search || 'Search')}
         </button>
       </div>
 
+      {progress && (
+        <div className="progress-indicator">
+          <div className="progress-text">
+            {locale.progress_searching.replace('{current}', progress.current).replace('{total}', progress.total)}
+          </div>
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${(progress.current / progress.total) * 100}%` }}></div>
+          </div>
+        </div>
+      )}
+
       <div className="filter-section">
         <details>
-          <summary>🔍 Date Filters (Optional)</summary>
+          <summary>🔍 {locale.date_filters}</summary>
           <div className="date-filters">
             <input
               type="date"
@@ -134,8 +270,8 @@ export default function WaybackSimpleSearch() {
             />
           </div>
         </details>
-        <div className="capture-control" style={{ marginTop: 8 }}>
-          <label>Captures:</label>
+          <div className="capture-control" style={{ marginTop: 8 }}>
+          <label>{locale.captures_label}</label>
           <select value={captureLimit} onChange={(e) => setCaptureLimit(Number(e.target.value))}>
             <option value={5}>5</option>
             <option value={12}>12</option>
@@ -146,67 +282,60 @@ export default function WaybackSimpleSearch() {
 
       <div className="results-section">
         <div className="results-header">
-          <h4>Results ({results.length})</h4>
+          <h4>{locale.results_label} ({results.length})</h4>
           {results.length > 0 && (
-            <button onClick={handleDownloadSelected} disabled={selected.size === 0} className="download-selected-btn">
-              Download Selected ({selected.size})
-            </button>
+            <div className="results-actions">
+              <button onClick={handleSelectAll} className="bulk-btn" title={locale.select_all}>
+                {locale.select_all}
+              </button>
+              <button onClick={handleDeselectAll} className="bulk-btn" title={locale.deselect_all}>
+                {locale.deselect_all}
+              </button>
+              <button onClick={() => exportResults('json')} className="export-btn" title={locale.export_json}>
+                {locale.export_json}
+              </button>
+              <button onClick={() => exportResults('csv')} className="export-btn" title={locale.export_csv}>
+                {locale.export_csv}
+              </button>
+              <button onClick={handleDownloadSelected} disabled={selected.size === 0} className="download-selected-btn">
+                {locale.download_selected_text} ({selected.size})
+              </button>
+            </div>
           )}
         </div>
         {results.length > 0 ? (
-          // Group results by `groupTitle` (provided by the extractor) or by timestamp
-          (() => {
-            const groupsMap = {}
-            results.forEach((it, idx) => {
-              const key = it.groupTitle || it.timestamp || (() => { try { return new URL(it.original).hostname } catch (e) { return 'misc' } })()
-              const title = it.groupTitle || (it.timestamp ? `${it.timestamp}` : (it.original ? it.original.split('/').slice(0,3).join('/') : 'Misc'))
-              const year = it.groupYear || (it.timestamp ? String(it.timestamp).slice(0,4) : '')
-              if (!groupsMap[key]) groupsMap[key] = { key, title, year, indices: [] }
-              groupsMap[key].indices.push(idx)
-            })
-            const groups = Object.values(groupsMap)
-            return (
-              <div>
-                {groups.map((g) => {
-                  const collapsed = !!collapsedGroups[g.key]
-                  return (
-                    <div key={g.key} className="result-group">
-                      <div className="group-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <button className="group-toggle" onClick={() => setCollapsedGroups(s => ({ ...s, [g.key]: !s[g.key] }))} aria-label={collapsed ? 'Expand group' : 'Collapse group'}>
-                          {collapsed ? '+' : '−'}
-                        </button>
-                        <div style={{ flex: 1 }}>
-                          <strong>{g.title}</strong>
-                          {g.year ? <span className="group-year"> {g.year}</span> : null}
-                          <span className="group-count"> — {g.indices.length} items</span>
-                        </div>
-                      </div>
-                      {!collapsed && (
-                        <div className="group-grid">
-                          {g.indices.map((idx) => (
-                            <ResultCard
-                              key={`${results[idx].timestamp || 't'}_${idx}`}
-                              item={results[idx]}
-                              isSelected={selected.has(idx)}
-                              onToggle={() => {
-                                const newSelected = new Set(selected)
-                                if (newSelected.has(idx)) newSelected.delete(idx)
-                                else newSelected.add(idx)
-                                setSelected(newSelected)
-                              }}
-                              locale={{}}
-                            />
-                          ))}
-                        </div>
-                      )}
+          <div className="results-strip">
+            {results.map((item, idx) => {
+              // Group by timestamp to show group headers
+              const showHeader = idx === 0 || results[idx - 1].timestamp !== item.timestamp
+              return (
+                <React.Fragment key={`${item.timestamp}_${idx}`}>
+                  {showHeader && (
+                    <div className="strip-group-header">
+                      <strong>{item.groupTitle || `${item.timestamp || 'Misc'}`}</strong>
+                      {item.groupYear && <span className="strip-group-year"> {item.groupYear}</span>}
                     </div>
-                  )
-                })}
-              </div>
-            )
-          })()
+                  )}
+                  <div className="strip-container">
+                    <ResultCard
+                      key={`card_${item.timestamp}_${idx}`}
+                      item={item}
+                      isSelected={selected.has(idx)}
+                      onToggle={() => {
+                        const newSelected = new Set(selected)
+                        if (newSelected.has(idx)) newSelected.delete(idx)
+                        else newSelected.add(idx)
+                        setSelected(newSelected)
+                      }}
+                      locale={{}}
+                    />
+                  </div>
+                </React.Fragment>
+              )
+            })}
+          </div>
         ) : (
-          <p className="no-results">{loading ? 'Searching...' : 'No results yet. Enter a URL and search.'}</p>
+          <p className="no-results">{loading ? (locale.searching || 'Searching...') : (locale.no_results_msg || 'No results yet. Enter a URL and search.')}</p>
         )}
       </div>
     </div>

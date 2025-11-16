@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UpdaterPrompt() {
+export default function UpdaterPrompt({ locale = {} }) {
   const [availableInfo, setAvailableInfo] = useState(null)
   const [downloadedInfo, setDownloadedInfo] = useState(null)
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 })
   const [checking, setChecking] = useState(false)
+  const [autoCheckDone, setAutoCheckDone] = useState(false)
 
   useEffect(() => {
     if (!window.updater) return
@@ -13,7 +14,6 @@ export default function UpdaterPrompt() {
     const onDownloaded = (info) => setDownloadedInfo(info)
     const onError = (err) => setError(err)
     const onProgress = (p) => {
-      // p may contain { percent, bytesPerSecond, transferred, total }
       const percent = Math.round((p.percent || 0) * 100) / 100
       const transferred = p.transferred || 0
       const total = p.total || 0
@@ -27,10 +27,18 @@ export default function UpdaterPrompt() {
     window.updater.onUpdateError(onError)
     if (window.updater.onUpdateDownloadProgress) window.updater.onUpdateDownloadProgress(onProgress)
 
+    // Auto-check for updates on app start
+    if (!autoCheckDone) {
+      setAutoCheckDone(true)
+      setTimeout(() => {
+        checkNow()
+      }, 2000) // Check after 2 seconds to let app load first
+    }
+
     return () => {
       // no-op: preload listeners are simple and not removed here
     }
-  }, [])
+  }, [autoCheckDone])
 
   const checkNow = async () => {
     if (!window.updater) return
@@ -38,7 +46,7 @@ export default function UpdaterPrompt() {
     try {
       await window.updater.checkForUpdates()
     } catch (e) {
-      setError(String(e))
+      console.log('Check for updates error (may be normal in dev):', e)
     }
     setChecking(false)
   }
@@ -74,45 +82,90 @@ export default function UpdaterPrompt() {
   const doInstall = async () => {
     if (!window.updater) return
     try {
+      // Backup user data before updating
+      const backup = await window.updater.backupUserData()
+      console.log('[UpdaterPrompt] User data backed up:', backup)
+      // Now install - data will be restored automatically by the new app version
       await window.updater.installUpdate()
     } catch (e) {
       setError(String(e))
     }
   }
 
+  const t = locale
   return (
     <div>
-      {/* Minimal visible control: check now button in the UI */}
-      <div style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 2000 }}>
-        <button className="btn" onClick={checkNow} disabled={checking}>{checking ? 'Checking...' : 'Check for updates'}</button>
+      {/* Check for updates button - header position */}
+      <div className="updater-check-button">
+        <button 
+          onClick={checkNow} 
+          disabled={checking}
+          className="btn-check-updates"
+          title={t.check_updates_button || 'Check for updates'}
+        >
+          {checking ? '⟳ ' : '🔄 '}{t.check_updates_button || 'Check for updates'}
+        </button>
       </div>
 
       {/* Modal: update available */}
       {availableInfo && !downloadedInfo && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Update available</h3>
-            <p>Version {availableInfo && availableInfo.version} is available. Do you want to download it now?</p>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button className="btn" onClick={doDownload}>Download</button>
-              <button className="btn btn-ghost" onClick={() => setAvailableInfo(null)}>Later</button>
+        <div className="update-modal-overlay">
+          <div className="update-modal-card">
+            <div className="update-modal-header">
+              <h3>📦 {t.update_available_title || 'Nova versão disponível'}</h3>
+              <button 
+                className="modal-close-btn"
+                onClick={() => setAvailableInfo(null)}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="update-modal-body">
+              <p className="update-version-text">
+                {t.update_available_message ? t.update_available_message.replace('{version}', availableInfo?.version) : `Versão ${availableInfo?.version} está disponível!`}
+              </p>
+              
               {progress && progress.total > 0 && (
-                <div style={{ marginLeft: 12, minWidth: 220 }}>
-                  <div className="progress-bar" style={{ height: 10, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }}>
-                    <div className="progress-fill" style={{ width: `${progress.percent}%`, height: '100%', background: 'linear-gradient(90deg,#60a5fa,#3b82f6)' }} />
+                <div className="update-progress-container">
+                  <div className="update-progress-bar">
+                    <div 
+                      className="update-progress-fill" 
+                      style={{ width: `${progress.percent}%` }}
+                    />
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                    {progress.percent}% — {Math.round(progress.transferred/1024)}KB / {Math.round(progress.total/1024)}KB
-                    {progress.bytesPerSecond ? ` — ${Math.round(progress.bytesPerSecond/1024)} KB/s` : ''}
-                    {progress.eta ? ` — ETA ${Math.round(progress.eta)}s` : ''}
+                  <div className="update-progress-text">
+                    <span>{progress.percent}%</span>
+                    <span>{Math.round(progress.transferred/1024)} KB / {Math.round(progress.total/1024)} KB</span>
+                    {progress.bytesPerSecond && <span>{Math.round(progress.bytesPerSecond/1024)} KB/s</span>}
+                    {progress.eta && <span>ETA: {progress.eta}s</span>}
                   </div>
-                  {progress.transferred > 0 && progress.percent < 100 && (
-                    <div style={{ marginTop: 8 }}>
-                      <button className="btn btn-ghost" onClick={doCancel}>Cancel download</button>
-                    </div>
-                  )}
                 </div>
               )}
+            </div>
+
+            <div className="update-modal-footer">
+              <button 
+                className="btn btn-primary"
+                onClick={doDownload}
+                disabled={progress.percent > 0 && progress.percent < 100}
+              >
+                {progress.percent > 0 && progress.percent < 100 ? '⬇️ Baixando...' : '⬇️ Baixar'}
+              </button>
+              {progress.transferred > 0 && progress.percent < 100 && (
+                <button 
+                  className="btn btn-secondary"
+                  onClick={doCancel}
+                >
+                  ⛔ Cancelar
+                </button>
+              )}
+              <button 
+                className="btn btn-ghost"
+                onClick={() => setAvailableInfo(null)}
+              >
+                Depois
+              </button>
             </div>
           </div>
         </div>
@@ -120,21 +173,43 @@ export default function UpdaterPrompt() {
 
       {/* Modal: downloaded and ready to install */}
       {downloadedInfo && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Update ready</h3>
-            <p>Update {downloadedInfo && downloadedInfo.version} has been downloaded. Install now?</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={doInstall}>Install and Restart</button>
-              <button className="btn btn-ghost" onClick={() => setDownloadedInfo(null)}>Later</button>
+        <div className="update-modal-overlay">
+          <div className="update-modal-card update-ready">
+            <div className="update-modal-header">
+              <h3>✅ {t.update_ready_title || 'Atualização pronta'}</h3>
+            </div>
+            
+            <div className="update-modal-body">
+              <p className="update-version-text">
+                {t.update_ready_message ? t.update_ready_message.replace('{version}', downloadedInfo?.version) : `Versão ${downloadedInfo?.version} foi baixada e está pronta para instalar.`}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', marginTop: '12px' }}>
+                O aplicativo será reiniciado para completar a atualização.
+              </p>
+            </div>
+
+            <div className="update-modal-footer">
+              <button 
+                className="btn btn-primary"
+                onClick={doInstall}
+              >
+                🚀 Instalar e Reiniciar
+              </button>
+              <button 
+                className="btn btn-ghost"
+                onClick={() => setDownloadedInfo(null)}
+              >
+                Depois
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Error notification */}
       {error && (
-        <div style={{ position: 'fixed', left: 12, bottom: 12, background: 'rgba(220,20,60,0.9)', color: '#fff', padding: 8, borderRadius: 6 }}>
-          <strong>Error:</strong> {String(error)}
+        <div className="update-error-notification">
+          <span>⚠️ Erro:</span> {String(error)}
         </div>
       )}
     </div>

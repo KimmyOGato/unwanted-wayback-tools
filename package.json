@@ -1,6 +1,6 @@
 {
   "name": "unwanted-tools",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Unwanted Tools - find archived media across Wayback, MP3 Search and LostMySpace",
   "main": "electron/main.js",
   "scripts": {
@@ -22,13 +22,17 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
     "electron-updater": "^5.0.0",
+    "ffmpeg-static": "^5.3.0",
+    "keytar": "^7.7.0",
     "node-fetch": "^2.6.7",
     "puppeteer": "^24.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "slsk-client": "^1.1.0"
-    ,
-    "keytar": "^7.7.0"
+    "slsk-client": "^1.1.0",
+    "yt-dlp-exec": "^1.0.2"
+  },
+  "optionalDependencies": {
+    "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
@@ -51,6 +55,10 @@
     "directories": {
       "buildResources": "build"
     },
+    "asarUnpack": [
+      "node_modules/yt-dlp-exec/bin/**",
+      "node_modules/ffmpeg-static/bin/**"
+    ],
     "publish": [
       {
         "provider": "github",
@@ -64,6 +72,20 @@
         "nsis"
       ],
       "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": false,
